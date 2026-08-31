@@ -1,0 +1,35 @@
+modules:
+  jira:globalPage:
+    - key: nuvriqo-excel-report-manager
+      resource: admin-ui
+      resolver:
+        function: resolver
+      title: Excel Report Manager
+      layout: blank
+
+  scheduledTrigger:
+    - key: report-dispatcher
+      function: scheduler
+      interval: fiveMinute
+
+  function:
+    - key: resolver
+      handler: index.handler
+    - key: scheduler
+      handler: scheduled.handler
+
+resources:
+  - key: admin-ui
+    path: static/admin-ui/dist
+
+permissions:
+  scopes:
+    - read:jira-work
+    - read:field:jira
+    - read:filter:jira
+    - storage:app
+
+app:
+  runtime:
+    name: nodejs22.x
+  id: REPLACE_WITH_FORGE_APP_ID
