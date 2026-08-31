@@ -28,6 +28,12 @@ permissions:
     - read:field:jira
     - read:filter:jira
     - storage:app
+  external:
+    fetch:
+      backend:
+        - https://login.microsoftonline.com
+        - https://graph.microsoft.com
+        - https://api.sendgrid.com
 
 app:
   runtime:
