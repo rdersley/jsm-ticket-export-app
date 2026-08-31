@@ -4,6 +4,7 @@ import { listReports, getReport, saveReport, deleteReport } from './services/rep
 import { listFields, listFilters } from './services/jira.js';
 import { getRuns } from './services/runHistory.js';
 import { runReport } from './services/runner.js';
+import { getEmailSettings, saveEmailSettings, sendTestEmail } from './services/email.js';
 
 const resolver = new Resolver();
 resolver.define('report:list', () => listReports());
@@ -20,4 +21,7 @@ resolver.define('jira:filters', () => listFilters());
 resolver.define('report:history', ({ payload }) => getRuns(payload.id));
 resolver.define('report:preview', ({ payload }) => runReport(payload.report, { delivery: false, history: false }));
 resolver.define('report:run', async ({ payload }) => runReport(await getReport(payload.id), { delivery: false }));
+resolver.define('email:settings:get', () => getEmailSettings());
+resolver.define('email:settings:save', ({ payload }) => saveEmailSettings(payload.settings));
+resolver.define('email:test', async ({ payload }) => { await sendTestEmail(payload.address); return { ok: true }; });
 export const handler = resolver.getDefinitions();
