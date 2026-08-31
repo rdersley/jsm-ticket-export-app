@@ -1,0 +1,26 @@
+{
+  "name": "nuvriqo-excel-report-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Visual, scheduled Excel reporting for Jira without Jira Automation rules.",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "npm run build:admin",
+    "build:admin": "vite build --config static/admin-ui/vite.config.js",
+    "lint": "forge lint",
+    "deploy": "npm run build && forge deploy"
+  },
+  "dependencies": {
+    "@forge/api": "^6.0.0",
+    "@forge/bridge": "^5.0.0",
+    "@forge/kvs": "^1.0.0",
+    "@forge/resolver": "^1.7.0",
+    "exceljs": "^4.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "vite": "^7.0.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  }
+}
