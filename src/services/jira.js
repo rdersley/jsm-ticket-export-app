@@ -1,0 +1,41 @@
+import api, { route } from '@forge/api';
+
+async function jsonOrThrow(response, label) {
+  if (!response.ok) throw new Error(`${label} failed (${response.status})`);
+  return response.json();
+}
+
+export async function listFields() {
+  const response = await api.asUser().requestJira(route`/rest/api/3/field`);
+  const fields = await jsonOrThrow(response, 'Loading Jira fields');
+  return fields
+    .filter(f => f.id && f.name)
+    .map(f => ({ id: f.id, name: f.name, custom: Boolean(f.custom), schema: f.schema?.type || '' }))
+    .sort((a,b) => a.name.localeCompare(b.name));
+}
+
+export async function listFilters() {
+  const response = await api.asUser().requestJira(route`/rest/api/3/filter/search?expand=jql&maxResults=100`);
+  const data = await jsonOrThrow(response, 'Loading saved filters');
+  return (data.values || []).map(f => ({ id: String(f.id), name: f.name, jql: f.jql || '', favourite: Boolean(f.favourite) }));
+}
+
+export async function searchIssues(jql, fieldIds, maxIssues = 500) {
+  const issues = [];
+  let nextPageToken;
+  const fields = [...new Set(['summary', ...fieldIds.filter(Boolean)])];
+  while (issues.length < maxIssues) {
+    const body = { jql: jql || 'ORDER BY created DESC', fields, maxResults: Math.min(100, maxIssues - issues.length) };
+    if (nextPageToken) body.nextPageToken = nextPageToken;
+    const response = await api.asApp().requestJira(route`/rest/api/3/search/jql`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await jsonOrThrow(response, 'Searching Jira issues');
+    issues.push(...(data.issues || []));
+    nextPageToken = data.nextPageToken;
+    if (!nextPageToken || !(data.issues || []).length) break;
+  }
+  return { issues, total: issues.length };
+}
