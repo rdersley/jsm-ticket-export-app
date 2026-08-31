@@ -1,6 +1,7 @@
 import { searchIssues } from './jira.js';
 import { buildWorkbook } from './workbook.js';
 import { addRun } from './runHistory.js';
+import { sendReportEmail } from './email.js';
 
 export async function runReport(report, { delivery = false, history = true } = {}) {
   const started = Date.now();
@@ -11,12 +12,13 @@ export async function runReport(report, { delivery = false, history = true } = {
     const result = await searchIssues(report.source.jql, fields, report.source?.maxIssues || 500);
     const issues = result.issues || [];
     const buffer = await buildWorkbook(report, issues);
+    const workbookBase64 = Buffer.from(buffer).toString('base64');
 
-    if (delivery) throw new Error('Email provider has not been configured for this installation yet.');
+    if (delivery) await sendReportEmail(report, workbookBase64, issues.length);
 
     const entry = { id: crypto.randomUUID(), status: 'success', mode: delivery ? 'scheduled' : 'manual', issueCount: issues.length, bytes: buffer.byteLength, durationMs: Date.now()-started, at: new Date().toISOString() };
     if (history && report.id) await addRun(report.id, entry);
-    return { entry, workbookBase64: Buffer.from(buffer).toString('base64') };
+    return { entry, workbookBase64: delivery ? undefined : workbookBase64 };
   } catch (error) {
     const entry = { id: crypto.randomUUID(), status: 'failed', mode: delivery ? 'scheduled' : 'manual', message: error.message, durationMs: Date.now()-started, at: new Date().toISOString() };
     if (history && report?.id) await addRun(report.id, entry);
