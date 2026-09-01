@@ -22,7 +22,18 @@ export const DEFAULT_REPORT = {
       autoFilter: true,
       alternateRows: true,
       jiraLinks: true,
-      generatedAt: true
+      generatedAt: true,
+      footerInfo: true,
+      fontName: 'Aptos',
+      bodyFontSize: 11,
+      headerFontSize: 11,
+      headerBold: true,
+      headerBackground: '#0C66E4',
+      headerTextColor: '#FFFFFF',
+      headerAlignment: 'left',
+      alternateRowBackground: '#F7F8F9',
+      bodyTextColor: '#172B4D',
+      rowHeight: 20
     }
   },
   schedule: {
