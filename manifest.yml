@@ -7,6 +7,15 @@ modules:
       title: Excel Report Manager
       layout: blank
 
+  jira:issueNavigatorAction:
+    - key: nuvriqo-excel-issue-navigator-export
+      resource: admin-ui
+      resolver:
+        function: resolver
+      title: Export with Excel Report Manager
+      tooltip: Export the current Jira search using a saved Excel template
+      viewportSize: large
+
   scheduledTrigger:
     - key: report-dispatcher
       function: scheduler
