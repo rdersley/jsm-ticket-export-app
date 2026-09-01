@@ -1,0 +1,30 @@
+name: One-time worksite install
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/worksite-install-once.yml'
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    env:
+      FORGE_EMAIL: ${{ secrets.FORGE_EMAIL }}
+      FORGE_API_TOKEN: ${{ secrets.FORGE_API_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Forge CLI
+        run: npm install --global @forge/cli
+      - name: Configure Forge CLI
+        run: forge settings set usage-analytics false
+      - name: Install or upgrade on work Jira site
+        shell: bash
+        run: |
+          forge install --upgrade --non-interactive --site retailinmotion.atlassian.net --product jira -e development || \
+          forge install --non-interactive --site retailinmotion.atlassian.net --product jira -e development
