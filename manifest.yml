@@ -31,9 +31,9 @@ permissions:
   external:
     fetch:
       backend:
-        - https://login.microsoftonline.com
-        - https://graph.microsoft.com
-        - https://api.sendgrid.com
+        - address: https://login.microsoftonline.com
+        - address: https://graph.microsoft.com
+        - address: https://api.sendgrid.com
 
 app:
   runtime:
