@@ -11,6 +11,8 @@ const display = value => {
   if (value.votes != null && typeof value.votes !== 'object') return value.votes;
   if (value.count != null && typeof value.count !== 'object') return value.count;
   if (value.total != null && typeof value.total !== 'object') return value.total;
+  if (value.emailAddress) return value.emailAddress;
+  if (value.url) return value.url;
   return JSON.stringify(value);
 };
 
@@ -22,6 +24,8 @@ const argb = (value, fallback) => {
   if (/^[0-9a-fA-F]{8}$/.test(clean)) return clean.toUpperCase();
   return String(fallback || 'FF172B4D').replace('#', '').padStart(8, 'F').toUpperCase();
 };
+const looksLikeDateField = id => /(date|time|created|updated|resolved|due|start)/i.test(String(id || ''));
+const isoDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value);
 
 export async function buildWorkbook(report, issues) {
   const wb = new ExcelJS.Workbook();
@@ -30,12 +34,20 @@ export async function buildWorkbook(report, issues) {
 
   const options = report.template?.workbook || {};
   const columns = report.template?.columns || [];
-  const ws = wb.addWorksheet(safeSheetName(options.sheetName));
+  const ws = wb.addWorksheet(safeSheetName(options.sheetName), {
+    views: [{ showGridLines: options.showGridLines === true }],
+    pageSetup: {
+      orientation: options.orientation === 'portrait' ? 'portrait' : 'landscape',
+      fitToPage: options.fitToPage !== false,
+      fitToWidth: options.fitToPage !== false ? 1 : undefined,
+      fitToHeight: 0
+    }
+  });
 
   const fontName = options.fontName || 'Aptos';
   const bodyFontSize = clamp(options.bodyFontSize, 8, 18, 11);
   const headerFontSize = clamp(options.headerFontSize, 8, 24, 11);
-  const rowHeight = clamp(options.rowHeight, 14, 40, 20);
+  const rowHeight = clamp(options.rowHeight, 14, 60, 20);
   const bodyTextColor = argb(options.bodyTextColor, 'FF172B4D');
   const headerBackground = argb(options.headerBackground, 'FF0C66E4');
   const headerTextColor = argb(options.headerTextColor, 'FFFFFFFF');
@@ -47,17 +59,10 @@ export async function buildWorkbook(report, issues) {
     ws.getColumn(i + 1).width = Math.max(8, Math.min(80, Number(c.width) || 20));
     const cell = ws.getCell(headerRow, i + 1);
     cell.value = c.label || c.fieldId;
-    cell.font = {
-      name: fontName,
-      size: headerFontSize,
-      bold: options.headerBold !== false,
-      color: { argb: headerTextColor }
-    };
+    cell.font = { name: fontName, size: headerFontSize, bold: options.headerBold !== false, color: { argb: headerTextColor } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: headerBackground } };
-    cell.alignment = { vertical: 'middle', horizontal: alignment };
-    cell.border = {
-      bottom: { style: 'thin', color: { argb: 'FFD0D5DD' } }
-    };
+    cell.alignment = { vertical: 'middle', horizontal: alignment, wrapText: true };
+    cell.border = { bottom: { style: 'thin', color: { argb: 'FFD0D5DD' } } };
   });
   ws.getRow(headerRow).height = Math.max(22, rowHeight);
 
@@ -68,19 +73,23 @@ export async function buildWorkbook(report, issues) {
     columns.forEach((c, i) => {
       const cell = row.getCell(i + 1);
       const raw = c.fieldId === 'key' ? issue.key : issue.fields?.[c.fieldId];
-      cell.value = display(raw);
+      const shown = display(raw);
+      if (options.autoDateFormat !== false && looksLikeDateField(c.fieldId) && isoDate(shown)) {
+        cell.value = new Date(shown);
+        cell.numFmt = options.dateFormat || 'dd/mm/yyyy hh:mm';
+      } else {
+        cell.value = shown;
+      }
       cell.font = { name: fontName, size: bodyFontSize, color: { argb: bodyTextColor } };
-      cell.alignment = { vertical: 'middle' };
+      cell.alignment = { vertical: 'top', wrapText: options.wrapText !== false };
 
       if (c.fieldId === 'key' && options.jiraLinks !== false && issue.self) {
         const base = issue.self.split('/rest/api/')[0];
         cell.value = { text: issue.key, hyperlink: `${base}/browse/${issue.key}` };
-        cell.font = {
-          name: fontName,
-          size: bodyFontSize,
-          color: { argb: 'FF0C66E4' },
-          underline: true
-        };
+        cell.font = { name: fontName, size: bodyFontSize, color: { argb: 'FF0C66E4' }, underline: true };
+      } else if (typeof shown === 'string' && /^https?:\/\//i.test(shown)) {
+        cell.value = { text: shown, hyperlink: shown };
+        cell.font = { name: fontName, size: bodyFontSize, color: { argb: 'FF0C66E4' }, underline: true };
       }
 
       if (options.alternateRows !== false && rowIndex % 2 === 1) {
@@ -93,7 +102,6 @@ export async function buildWorkbook(report, issues) {
     let footerRow = rowIndex + 2;
     const span = Math.max(1, columns.length);
     const reportTitle = (options.title || report.name || '').trim();
-
     if (reportTitle) {
       ws.mergeCells(footerRow, 1, footerRow, span);
       const cell = ws.getCell(footerRow, 1);
@@ -101,7 +109,6 @@ export async function buildWorkbook(report, issues) {
       cell.font = { name: fontName, size: bodyFontSize, bold: true, color: { argb: bodyTextColor } };
       footerRow++;
     }
-
     if (options.subtitle) {
       ws.mergeCells(footerRow, 1, footerRow, span);
       const cell = ws.getCell(footerRow, 1);
@@ -109,7 +116,6 @@ export async function buildWorkbook(report, issues) {
       cell.font = { name: fontName, size: bodyFontSize, italic: true, color: { argb: bodyTextColor } };
       footerRow++;
     }
-
     if (options.generatedAt !== false) {
       ws.mergeCells(footerRow, 1, footerRow, span);
       const cell = ws.getCell(footerRow, 1);
@@ -118,13 +124,10 @@ export async function buildWorkbook(report, issues) {
     }
   }
 
-  if (options.freezeHeader !== false) ws.views = [{ state: 'frozen', ySplit: headerRow }];
+  if (options.freezeHeader !== false) ws.views = [{ state: 'frozen', ySplit: headerRow, showGridLines: options.showGridLines === true }];
   if (options.autoFilter !== false && columns.length) {
-    ws.autoFilter = {
-      from: { row: headerRow, column: 1 },
-      to: { row: headerRow, column: columns.length }
-    };
+    ws.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: headerRow, column: columns.length } };
   }
-
+  ws.properties.defaultRowHeight = rowHeight;
   return wb.xlsx.writeBuffer();
 }
