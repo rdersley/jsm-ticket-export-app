@@ -7,6 +7,14 @@ modules:
       title: Excel Report Manager
       layout: blank
 
+  jira:adminPage:
+    - key: nuvriqo-excel-report-manager-admin
+      resource: admin-ui
+      resolver:
+        function: resolver
+      title: Excel Report Manager
+      layout: blank
+
   jira:issueNavigatorAction:
     - key: nuvriqo-excel-issue-navigator-export
       resource: navigator-ui
