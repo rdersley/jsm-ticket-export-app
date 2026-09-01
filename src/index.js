@@ -21,6 +21,35 @@ resolver.define('jira:filters', () => listFilters());
 resolver.define('report:history', ({ payload }) => getRuns(payload.id));
 resolver.define('report:preview', ({ payload }) => runReport(payload.report, { delivery: false, history: false }));
 resolver.define('report:run', async ({ payload }) => runReport(await getReport(payload.id), { delivery: false }));
+resolver.define('report:navigator-export', async ({ payload }) => {
+  const template = await getReport(payload.id);
+  if (!template) throw new Error('Template not found.');
+
+  const rawKeys = payload.issueKeys;
+  const issueKeys = Array.isArray(rawKeys)
+    ? rawKeys
+    : String(rawKeys || '').split(/[\s,]+/).filter(Boolean);
+
+  let jql = String(payload.jql || '').trim();
+  if (issueKeys.length) {
+    const safeKeys = issueKeys
+      .map(key => String(key).trim())
+      .filter(key => /^[A-Z][A-Z0-9_]*-\d+$/i.test(key));
+    if (!safeKeys.length) throw new Error('The selected Jira work items could not be read.');
+    jql = `key in (${safeKeys.map(key => `"${key.replace(/"/g, '\\"')}"`).join(', ')})`;
+  }
+  if (!jql) throw new Error('No Jira search query was supplied by the work-item navigator.');
+
+  const report = structuredClone(template);
+  report.source = {
+    ...(report.source || {}),
+    type: issueKeys.length ? 'selected-issues' : 'jql',
+    filterId: payload.filterId || null,
+    jql,
+    maxIssues: 5000
+  };
+  return runReport(report, { delivery: false, history: true, mode: 'navigator' });
+});
 resolver.define('email:settings:get', () => getEmailSettings());
 resolver.define('email:settings:save', ({ payload }) => saveEmailSettings(payload.settings));
 resolver.define('email:test', async ({ payload }) => { await sendTestEmail(payload.address); return { ok: true }; });
