@@ -9,8 +9,7 @@ const defaults = {
   senderEmail: '',
   senderName: 'Nuvriqo Excel Report Manager',
   tenantId: '',
-  clientId: '',
-  scheduledDeliveryEnabled: false
+  clientId: ''
 };
 
 export async function getEmailSettings() {
@@ -26,11 +25,8 @@ export async function saveEmailSettings(input = {}) {
     senderEmail: String(input.senderEmail || '').trim(),
     senderName: String(input.senderName || 'Nuvriqo Excel Report Manager').trim(),
     tenantId: String(input.tenantId || '').trim(),
-    clientId: String(input.clientId || '').trim(),
-    scheduledDeliveryEnabled: Boolean(input.scheduledDeliveryEnabled)
+    clientId: String(input.clientId || '').trim()
   };
-
-  if (provider === 'none') settings.scheduledDeliveryEnabled = false;
 
   await kvs.set(SETTINGS_KEY, settings);
   if (input.secret?.trim()) await kvs.setSecret(SECRET_KEY, input.secret.trim());
@@ -42,13 +38,12 @@ function render(template = '', vars = {}) {
   return String(template).replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_, key) => vars[key] ?? '');
 }
 
-async function getConfig({ scheduled = false } = {}) {
+async function getConfig() {
   const settings = { ...defaults, ...((await kvs.get(SETTINGS_KEY)) || {}) };
   const secret = await kvs.getSecret(SECRET_KEY);
   if (!settings.provider || settings.provider === 'none') throw new Error('Email delivery is not configured. Open Email settings first.');
   if (!secret) throw new Error('Email provider secret is missing.');
   if (!settings.senderEmail) throw new Error('Sender email address is missing.');
-  if (scheduled && !settings.scheduledDeliveryEnabled) throw new Error('Scheduled email delivery is disabled in Email settings.');
   return { ...settings, secret };
 }
 
@@ -92,7 +87,8 @@ async function sendWithSendGrid(config, message) {
 }
 
 export async function sendReportEmail(report, workbookBase64, issueCount) {
-  const config = await getConfig({ scheduled: true });
+  if (!report?.enabled) throw new Error('Scheduled delivery is not enabled for this report.');
+  const config = await getConfig();
   const to = report.delivery?.recipients || [];
   if (!to.length) throw new Error('Add at least one email recipient.');
   const now = new Date();
