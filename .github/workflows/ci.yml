@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: forge-development-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
