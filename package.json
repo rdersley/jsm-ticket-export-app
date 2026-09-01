@@ -7,6 +7,7 @@
   "scripts": {
     "build": "npm run build:admin",
     "build:admin": "vite build --config static/admin-ui/vite.config.js",
+    "test": "node --experimental-default-type=module --test tests/*.test.js",
     "lint": "forge lint",
     "deploy": "npm run build && forge deploy"
   },
