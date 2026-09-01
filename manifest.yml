@@ -9,7 +9,7 @@ modules:
 
   jira:issueNavigatorAction:
     - key: nuvriqo-excel-issue-navigator-export
-      resource: admin-ui
+      resource: navigator-ui
       resolver:
         function: resolver
       title: Export with Excel Report Manager
@@ -30,6 +30,8 @@ modules:
 resources:
   - key: admin-ui
     path: static/admin-ui/dist
+  - key: navigator-ui
+    path: static/navigator-ui/dist
 
 permissions:
   scopes:
