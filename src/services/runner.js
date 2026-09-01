@@ -19,8 +19,9 @@ function validateReport(report, delivery) {
   }
 }
 
-export async function runReport(report, { delivery = false, history = true } = {}) {
+export async function runReport(report, { delivery = false, history = true, mode = null } = {}) {
   const started = Date.now();
+  const runMode = mode || (delivery ? 'scheduled' : 'manual');
   try {
     validateReport(report, delivery);
     const fields = (report.template.columns || []).map(c => c.fieldId).filter(x => x !== 'key');
@@ -34,7 +35,7 @@ export async function runReport(report, { delivery = false, history = true } = {
     const entry = {
       id: crypto.randomUUID(),
       status: 'success',
-      mode: delivery ? 'scheduled' : 'manual',
+      mode: runMode,
       issueCount: issues.length,
       bytes: buffer.byteLength,
       durationMs: Date.now() - started,
@@ -46,7 +47,7 @@ export async function runReport(report, { delivery = false, history = true } = {
     const entry = {
       id: crypto.randomUUID(),
       status: 'failed',
-      mode: delivery ? 'scheduled' : 'manual',
+      mode: runMode,
       message: error.message,
       durationMs: Date.now() - started,
       at: new Date().toISOString()
