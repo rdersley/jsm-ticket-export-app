@@ -15,6 +15,7 @@
   "dependencies": {
     "@forge/api": "^6.0.0",
     "@forge/bridge": "6.3.1",
+    "@forge/events": "^2.0.0",
     "@forge/kvs": "^1.0.0",
     "@forge/resolver": "^1.7.0",
     "exceljs": "^4.4.0"
