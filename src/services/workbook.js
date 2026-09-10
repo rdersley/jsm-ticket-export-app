@@ -2,7 +2,6 @@ import ExcelJS from 'exceljs';
 
 const JIRA_KEY = /^[A-Z][A-Z0-9_]*-\d+$/i;
 const isIssueLinkColumn = column => column?.fieldId === 'issuelinks' || /(?:linked?\s*issues?|issue\s*links?)/i.test(String(column?.label || ''));
-const summaryOf = value => String(value?.fields?.summary || value?.summary || '').trim();
 
 const parseJsonValue = value => {
   if (typeof value !== 'string') return value;
@@ -32,11 +31,10 @@ const collectIssueLinks = (input, relation = '', output = [], seen = new Set(), 
 
   const key = String(value.key || value.issueKey || '').trim();
   if (JIRA_KEY.test(key)) {
-    const summary = summaryOf(value);
-    const text = `${relation ? `${relation}: ` : ''}${key}${summary ? ` – ${summary}` : ''}`;
-    if (!seen.has(text)) {
-      seen.add(text);
-      output.push(text);
+    const normalizedKey = key.toUpperCase();
+    if (!seen.has(normalizedKey)) {
+      seen.add(normalizedKey);
+      output.push(normalizedKey);
     }
     return output;
   }
