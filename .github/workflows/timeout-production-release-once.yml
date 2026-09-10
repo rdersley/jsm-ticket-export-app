@@ -35,3 +35,5 @@ jobs:
         run: forge deploy -e production
       - name: Upgrade worksite install
         run: forge install --upgrade --non-interactive --site retailinmotion.atlassian.net --product jira -e production
+
+# Triggered for lazy Jira metadata loading release.
