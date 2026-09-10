@@ -51,7 +51,7 @@ resolver.define('report:navigator-export', async ({ payload }) => {
     type: issueKeys.length ? 'selected-issues' : 'jql',
     filterId: payload.filterId || null,
     jql,
-    maxIssues: 5000
+    maxIssues: 10000
   };
   return runReport(report, { delivery: false, history: true, mode: 'navigator' });
 });
