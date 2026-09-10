@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/production-deploy-once.yml'
 
+# Triggered for robust Linked Issues formatting release 2026-09-10
 jobs:
   deploy:
     runs-on: ubuntu-latest
