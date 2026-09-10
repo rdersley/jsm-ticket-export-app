@@ -8,8 +8,8 @@ function validateReport(report, delivery) {
   if (!report?.source?.jql?.trim()) throw new Error('The report needs a JQL query or saved filter.');
   if (!(report.template?.columns || []).length) throw new Error('Add at least one Excel column.');
   const maxIssues = Number(report.source?.maxIssues || 500);
-  if (!Number.isFinite(maxIssues) || maxIssues < 1 || maxIssues > 5000) {
-    throw new Error('Maximum issues must be between 1 and 5000.');
+  if (!Number.isFinite(maxIssues) || maxIssues < 1 || maxIssues > 10000) {
+    throw new Error('Maximum issues must be between 1 and 10000.');
   }
   if (delivery && !(report.delivery?.recipients || []).length) {
     throw new Error('Add at least one email recipient before enabling scheduled delivery.');
