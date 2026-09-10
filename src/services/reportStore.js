@@ -38,7 +38,7 @@ function normalizeReport(report) {
   if (duplicateField) throw new Error(`The field ${duplicateField} is included more than once.`);
   const jql = String(report.source?.jql || '').trim();
   if (!jql) throw new Error('The report needs a JQL query or saved filter.');
-  const maxIssues = Math.max(1, Math.min(5000, Number(report.source?.maxIssues || 500)));
+  const maxIssues = Math.max(1, Math.min(10000, Number(report.source?.maxIssues || 500)));
   const recipients = normalizeEmails(report.delivery?.recipients, 'Recipients');
   const cc = normalizeEmails(report.delivery?.cc, 'CC');
 
