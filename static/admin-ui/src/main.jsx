@@ -15,7 +15,25 @@ function App(){
  useEffect(()=>{refresh();invoke('jira:fields').then(setFields).catch(()=>{});invoke('jira:filters').then(setFilters).catch(()=>{})},[]);
  const create=async()=>setEditing(await invoke('report:new'));
  const save=async report=>{setBusy(true);try{await invoke('report:save',{report});setEditing(null);await refresh();setNotice('Report saved.')}catch(e){setNotice(e.message||'Could not save report.')}finally{setBusy(false)}};
- const run=async r=>{setBusy(true);setNotice(`Generating ${r.name}…`);try{const x=await invoke('report:run',{id:r.id});downloadBase64(x.workbookBase64,`${r.name}.xlsx`);setNotice(`Generated ${x.entry.issueCount} work items.`)}catch(e){setNotice(e.message||'Report failed.')}finally{setBusy(false)}};
+ const run=async r=>{
+  setBusy(true);setNotice(`Queued ${r.name}…`);let jobId;
+  try{
+   const started=await invoke('report:run:start',{id:r.id});jobId=started.jobId;setNotice(`Generating ${r.name} in the background…`);
+   for(let attempt=0;attempt<300;attempt++){
+    const status=await invoke('report:run:status',{jobId});
+    if(status.state==='ready'){
+     let base64='';for(let i=0;i<Number(status.chunkCount||0);i++)base64+=await invoke('report:run:chunk',{jobId,index:i});
+     downloadBase64(base64,status.filename||`${r.name}.xlsx`);
+     await invoke('report:run:cleanup',{jobId}).catch(()=>{});
+     setNotice(`Generated ${status.issueCount??0} work items in ${status.durationMs?Math.round(status.durationMs/1000)+'s':'the background'}.`);return;
+    }
+    if(status.state==='failed')throw new Error(status.message||'Report generation failed.');
+    if(status.state==='missing')throw new Error('The export job could not be found.');
+    await new Promise(resolve=>setTimeout(resolve,2000));
+   }
+   throw new Error('The report is still running. Please try again shortly.');
+  }catch(e){setNotice(e.message||'Report failed.');if(jobId)await invoke('report:run:cleanup',{jobId}).catch(()=>{})}finally{setBusy(false)}
+ };
  const duplicate=async r=>{await invoke('report:duplicate',{id:r.id});await refresh();setNotice('Report duplicated as a disabled copy.')};
  const remove=async r=>{if(!confirm(`Delete “${r.name}”?`))return;await invoke('report:delete',{id:r.id});await refresh();setNotice('Report deleted.')};
  const openHistory=async r=>setHistory({report:r,runs:await invoke('report:history',{id:r.id})});
