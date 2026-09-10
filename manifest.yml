@@ -37,11 +37,19 @@ modules:
       function: scheduler
       interval: fiveMinute
 
+  consumer:
+    - key: report-export-consumer
+      queue: report-export-queue
+      function: export-worker
+
   function:
     - key: resolver
       handler: index.handler
     - key: scheduler
       handler: scheduled.handler
+    - key: export-worker
+      handler: asyncExport.handler
+      timeoutSeconds: 900
 
 resources:
   - key: admin-ui
