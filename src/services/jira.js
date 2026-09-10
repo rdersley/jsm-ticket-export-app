@@ -5,19 +5,50 @@ async function jsonOrThrow(response, label) {
   return response.json();
 }
 
+async function withTimeout(work, milliseconds, fallbackValue) {
+  let timer;
+  try {
+    return await Promise.race([
+      Promise.resolve(work).catch(() => fallbackValue),
+      new Promise(resolve => {
+        timer = setTimeout(() => resolve(fallbackValue), milliseconds);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+const FALLBACK_FIELDS = [
+  ['key', 'Key'],
+  ['summary', 'Summary'],
+  ['status', 'Status'],
+  ['assignee', 'Assignee'],
+  ['reporter', 'Reporter'],
+  ['priority', 'Priority'],
+  ['created', 'Created'],
+  ['updated', 'Updated'],
+  ['resolution', 'Resolution'],
+  ['resolutiondate', 'Resolution date']
+].map(([id, name]) => ({ id, name, custom: false, schema: '' }));
+
 export async function listFields() {
-  const response = await api.asUser().requestJira(route`/rest/api/3/field`);
-  const fields = await jsonOrThrow(response, 'Loading Jira fields');
-  return fields
-    .filter(f => f.id && f.name)
-    .map(f => ({ id: f.id, name: f.name, custom: Boolean(f.custom), schema: f.schema?.type || '' }))
-    .sort((a,b) => a.name.localeCompare(b.name));
+  return withTimeout((async () => {
+    const response = await api.asUser().requestJira(route`/rest/api/3/field`);
+    const fields = await jsonOrThrow(response, 'Loading Jira fields');
+    return fields
+      .filter(f => f.id && f.name)
+      .map(f => ({ id: f.id, name: f.name, custom: Boolean(f.custom), schema: f.schema?.type || '' }))
+      .sort((a,b) => a.name.localeCompare(b.name));
+  })(), 8000, FALLBACK_FIELDS);
 }
 
 export async function listFilters() {
-  const response = await api.asUser().requestJira(route`/rest/api/3/filter/search?expand=jql&maxResults=100`);
-  const data = await jsonOrThrow(response, 'Loading saved filters');
-  return (data.values || []).map(f => ({ id: String(f.id), name: f.name, jql: f.jql || '', favourite: Boolean(f.favourite) }));
+  return withTimeout((async () => {
+    const response = await api.asUser().requestJira(route`/rest/api/3/filter/search?expand=jql&maxResults=100`);
+    const data = await jsonOrThrow(response, 'Loading saved filters');
+    return (data.values || []).map(f => ({ id: String(f.id), name: f.name, jql: f.jql || '', favourite: Boolean(f.favourite) }));
+  })(), 8000, []);
 }
 
 export async function searchIssues(jql, fieldIds, maxIssues = 500) {
