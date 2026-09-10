@@ -4,6 +4,7 @@ import { listReports, getReport, saveReport, deleteReport } from './services/rep
 import { listFields, listFilters } from './services/jira.js';
 import { getRuns } from './services/runHistory.js';
 import { runReport } from './services/runner.js';
+import { startExport, getExportStatus, getExportChunk, cleanupExport } from './asyncExport.js';
 import { getEmailSettings, saveEmailSettings, sendTestEmail } from './services/email.js';
 
 const resolver = new Resolver();
@@ -20,6 +21,10 @@ resolver.define('jira:fields', () => listFields());
 resolver.define('jira:filters', () => listFilters());
 resolver.define('report:history', ({ payload }) => getRuns(payload.id));
 resolver.define('report:preview', ({ payload }) => runReport(payload.report, { delivery: false, history: false }));
+resolver.define('report:run:start', ({ payload }) => startExport(payload.id));
+resolver.define('report:run:status', ({ payload }) => getExportStatus(payload.jobId));
+resolver.define('report:run:chunk', ({ payload }) => getExportChunk(payload.jobId, payload.index));
+resolver.define('report:run:cleanup', ({ payload }) => cleanupExport(payload.jobId));
 resolver.define('report:run', async ({ payload }) => runReport(await getReport(payload.id), { delivery: false }));
 resolver.define('report:navigator-export', async ({ payload }) => {
   const template = await getReport(payload.id);
