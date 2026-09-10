@@ -50,3 +50,15 @@ test('run key is stable throughout one due window', () => {
   const r = report({ frequency: 'daily' });
   assert.equal(runKey(r, new Date('2026-09-01T07:00:00Z')), runKey(r, new Date('2026-09-01T07:08:00Z')));
 });
+
+test('Europe Dublin schedule follows summer daylight saving time', () => {
+  const r = report({ frequency: 'daily', time: '08:00', timezone: 'Europe/Dublin' });
+  assert.equal(isDue(r, new Date('2026-07-15T07:04:00Z')), true);
+  assert.equal(isDue(r, new Date('2026-07-15T08:04:00Z')), false);
+});
+
+test('Europe Dublin schedule follows winter UTC time', () => {
+  const r = report({ frequency: 'daily', time: '08:00', timezone: 'Europe/Dublin' });
+  assert.equal(isDue(r, new Date('2026-12-15T08:04:00Z')), true);
+  assert.equal(isDue(r, new Date('2026-12-15T07:04:00Z')), false);
+});
