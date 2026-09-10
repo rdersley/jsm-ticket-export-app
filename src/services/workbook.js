@@ -1,9 +1,38 @@
 import ExcelJS from 'exceljs';
 
+const issueLinkDisplay = value => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+
+  const linked = value.outwardIssue || value.inwardIssue;
+  if (linked?.key) {
+    const relation = value.outwardIssue
+      ? (value.type?.outward || value.type?.name || 'links to')
+      : (value.type?.inward || value.type?.name || 'linked from');
+    const summary = linked.fields?.summary || linked.summary || '';
+    return `${relation}: ${linked.key}${summary ? ` – ${summary}` : ''}`;
+  }
+
+  if (value.issue?.key) {
+    const summary = value.issue.fields?.summary || value.issue.summary || '';
+    return `${value.issue.key}${summary ? ` – ${summary}` : ''}`;
+  }
+
+  if (value.fields?.key) {
+    const summary = value.fields?.summary || '';
+    return `${value.fields.key}${summary ? ` – ${summary}` : ''}`;
+  }
+
+  return null;
+};
+
 const display = value => {
   if (value == null) return '';
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
   if (Array.isArray(value)) return value.map(display).filter(v => v !== '').join(', ');
+
+  const linkedIssue = issueLinkDisplay(value);
+  if (linkedIssue) return linkedIssue;
+
   if (value.displayName) return value.displayName;
   if (value.name) return value.name;
   if (value.value != null && typeof value.value !== 'object') return value.value;
