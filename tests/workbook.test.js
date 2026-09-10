@@ -80,3 +80,19 @@ test('body cells wrap text and print setup is applied', async () => {
   assert.equal(ws.pageSetup.orientation, 'landscape');
   assert.equal(ws.pageSetup.fitToPage, true);
 });
+
+test('Linked Issues export only Jira ticket keys', async () => {
+  const report = structuredClone(baseReport);
+  report.template.columns = [{ fieldId: 'issuelinks', label: 'Linked Issues', width: 24 }];
+  const data = [{
+    key: 'DEMO-1',
+    fields: {
+      issuelinks: [
+        { type: { outward: 'is caused by' }, outwardIssue: { key: 'HW-46874', fields: { summary: 'Hardware fault' } } },
+        { type: { inward: 'relates to' }, inwardIssue: { key: 'SD-32023', fields: { summary: 'Service request' } } }
+      ]
+    }
+  }];
+  const wb = await workbookFromReport(report, data);
+  assert.equal(wb.getWorksheet('Issues').getCell('A2').value, 'HW-46874\nSD-32023');
+});
