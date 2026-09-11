@@ -6,7 +6,7 @@ import { getRuns } from './services/runHistory.js';
 import { runReport } from './services/runner.js';
 import { startExport, getExportStatus, getExportChunk, cleanupExport } from './asyncExport.js';
 import { getEmailSettings, saveEmailSettings, sendTestEmail } from './services/email.js';
-import { beginMicrosoftConnect, completeMicrosoftConnect, disconnectMicrosoft, getMicrosoftConnection } from './services/microsoftOAuth.js';
+import { beginMicrosoftConnect, completeMicrosoftConnect, disconnectMicrosoft, getMicrosoftConnection, getMicrosoftConnectStatus } from './services/microsoftOAuth.js';
 
 const resolver = new Resolver();
 resolver.define('report:list', () => listReports());
@@ -60,6 +60,7 @@ resolver.define('email:settings:get', () => getEmailSettings());
 resolver.define('email:settings:save', ({ payload }) => saveEmailSettings(payload.settings));
 resolver.define('email:test', async ({ payload }) => { await sendTestEmail(payload.address); return { ok: true }; });
 resolver.define('email:microsoft:status', () => getMicrosoftConnection());
+resolver.define('email:microsoft:connect-status', ({ payload }) => getMicrosoftConnectStatus(payload.requestId));
 resolver.define('email:microsoft:begin', () => beginMicrosoftConnect());
 resolver.define('email:microsoft:complete', async ({ payload }) => completeMicrosoftConnect(payload));
 resolver.define('email:microsoft:disconnect', () => disconnectMicrosoft());
