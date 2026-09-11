@@ -42,6 +42,11 @@ modules:
       queue: report-export-queue
       function: export-worker
 
+  webtrigger:
+    - key: microsoft-oauth-callback
+      function: microsoft-oauth-callback-fn
+      urlFormat: v2
+
   function:
     - key: resolver
       handler: index.handler
@@ -50,6 +55,8 @@ modules:
     - key: export-worker
       handler: asyncExport.handler
       timeoutSeconds: 900
+    - key: microsoft-oauth-callback-fn
+      handler: microsoftOAuthCallback.handler
 
 resources:
   - key: admin-ui
