@@ -6,7 +6,7 @@ on:
     paths:
       - '.github/workflows/production-deploy-once.yml'
 
-# Triggered for Microsoft 365 Easy Connect popup fix 2026-09-11
+# Triggered for hardened Microsoft 365 Easy Connect popup handling 2026-09-11
 jobs:
   deploy:
     runs-on: ubuntu-latest
