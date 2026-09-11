@@ -1,5 +1,6 @@
 import { fetch } from '@forge/api';
 import { kvs } from '@forge/kvs';
+import { getMicrosoftAccessToken, getMicrosoftConnection } from './microsoftOAuth.js';
 
 const SETTINGS_KEY = 'email:settings';
 const SECRET_KEY = 'email:secret';
@@ -15,7 +16,8 @@ const defaults = {
 export async function getEmailSettings() {
   const settings = { ...defaults, ...((await kvs.get(SETTINGS_KEY)) || {}) };
   const secret = await kvs.getSecret(SECRET_KEY);
-  return { ...settings, hasSecret: Boolean(secret), secret: undefined };
+  const microsoftConnection = await getMicrosoftConnection();
+  return { ...settings, hasSecret: Boolean(secret), secret: undefined, microsoftConnection };
 }
 
 export async function saveEmailSettings(input = {}) {
@@ -27,6 +29,12 @@ export async function saveEmailSettings(input = {}) {
     tenantId: String(input.tenantId || '').trim(),
     clientId: String(input.clientId || '').trim()
   };
+
+  if (provider === 'microsoft-easy' && !settings.senderEmail) {
+    const connection = await getMicrosoftConnection();
+    settings.senderEmail = connection.email || '';
+    if (!settings.senderName && connection.displayName) settings.senderName = connection.displayName;
+  }
 
   await kvs.set(SETTINGS_KEY, settings);
   if (input.secret?.trim()) await kvs.setSecret(SECRET_KEY, input.secret.trim());
@@ -40,11 +48,63 @@ function render(template = '', vars = {}) {
 
 async function getConfig() {
   const settings = { ...defaults, ...((await kvs.get(SETTINGS_KEY)) || {}) };
-  const secret = await kvs.getSecret(SECRET_KEY);
   if (!settings.provider || settings.provider === 'none') throw new Error('Email delivery is not configured. Open Email settings first.');
+
+  if (settings.provider === 'microsoft-easy') {
+    const connection = await getMicrosoftConnection();
+    if (!connection.connected) throw new Error('Microsoft 365 Easy Connect is not connected.');
+    return { ...settings, microsoftConnection: connection };
+  }
+
+  const secret = await kvs.getSecret(SECRET_KEY);
   if (!secret) throw new Error('Email provider secret is missing.');
   if (!settings.senderEmail) throw new Error('Sender email address is missing.');
   return { ...settings, secret };
+}
+
+function graphPayload(message) {
+  const recipients = emails => emails.map(address => ({ emailAddress: { address } }));
+  return {
+    message: {
+      subject: message.subject,
+      body: { contentType: 'Text', content: message.body },
+      toRecipients: recipients(message.to),
+      ccRecipients: recipients(message.cc || []),
+      attachments: [{
+        '@odata.type': '#microsoft.graph.fileAttachment',
+        name: message.attachmentName,
+        contentType: message.contentType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        contentBytes: message.workbookBase64
+      }]
+    },
+    saveToSentItems: true
+  };
+}
+
+async function sendGraphRequest(accessToken, endpoint, message) {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(graphPayload(message))
+  });
+  if (!response.ok) {
+    let detail = '';
+    try { detail = (await response.json())?.error?.message || ''; } catch {}
+    throw new Error(`Microsoft 365 send failed (${response.status})${detail ? `: ${detail}` : ''}`);
+  }
+}
+
+async function sendWithEasyGraph(config, message) {
+  const accessToken = await getMicrosoftAccessToken();
+  const connectedEmail = String(config.microsoftConnection?.email || '').toLowerCase();
+  const senderEmail = String(config.senderEmail || config.microsoftConnection?.email || '').trim();
+  if (!senderEmail) throw new Error('Microsoft 365 sender email address is missing.');
+
+  const endpoint = senderEmail.toLowerCase() === connectedEmail
+    ? 'https://graph.microsoft.com/v1.0/me/sendMail'
+    : `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(senderEmail)}/sendMail`;
+
+  return sendGraphRequest(accessToken, endpoint, message);
 }
 
 async function sendWithGraph(config, message) {
@@ -56,19 +116,7 @@ async function sendWithGraph(config, message) {
   });
   if (!tokenResponse.ok) throw new Error(`Microsoft 365 authentication failed (${tokenResponse.status}).`);
   const { access_token: accessToken } = await tokenResponse.json();
-  const recipients = emails => emails.map(address => ({ emailAddress: { address } }));
-  const response = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(config.senderEmail)}/sendMail`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: {
-      subject: message.subject,
-      body: { contentType: 'Text', content: message.body },
-      toRecipients: recipients(message.to),
-      ccRecipients: recipients(message.cc || []),
-      attachments: [{ '@odata.type': '#microsoft.graph.fileAttachment', name: message.attachmentName, contentType: message.contentType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', contentBytes: message.workbookBase64 }]
-    }, saveToSentItems: true })
-  });
-  if (!response.ok) throw new Error(`Microsoft 365 send failed (${response.status}).`);
+  return sendGraphRequest(accessToken, `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(config.senderEmail)}/sendMail`, message);
 }
 
 async function sendWithSendGrid(config, message) {
@@ -102,6 +150,7 @@ export async function sendReportEmail(report, workbookBase64, issueCount) {
     workbookBase64,
     contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   };
+  if (config.provider === 'microsoft-easy') return sendWithEasyGraph(config, message);
   if (config.provider === 'microsoft-graph') return sendWithGraph(config, message);
   if (config.provider === 'sendgrid') return sendWithSendGrid(config, message);
   throw new Error(`Unsupported email provider: ${config.provider}`);
@@ -119,6 +168,7 @@ export async function sendTestEmail(address) {
     contentType: 'text/plain'
   };
   if (!message.to[0]) throw new Error('Enter a test email address.');
+  if (config.provider === 'microsoft-easy') return sendWithEasyGraph(config, message);
   if (config.provider === 'microsoft-graph') return sendWithGraph(config, message);
   if (config.provider === 'sendgrid') return sendWithSendGrid(config, message);
   throw new Error(`Unsupported email provider: ${config.provider}`);
