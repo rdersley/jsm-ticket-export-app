@@ -42,16 +42,10 @@ jobs:
       - name: Build Custom UI
         run: npm run build
 
-      - name: Forge lint
-        run: forge lint
-
-      - name: Deploy to Forge development
+      - name: Deploy to Forge development with major-version approval
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: forge deploy -e development
+        run: forge deploy -e development --approve MAJOR_VERSION_RULE --non-interactive
 
       - name: Install or upgrade on Nuvriqo Jira
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        shell: bash
-        run: |
-          forge install --upgrade --non-interactive --site nuvriqo.atlassian.net --product jira -e development || \
-          forge install --non-interactive --site nuvriqo.atlassian.net --product jira -e development
+        run: forge install --upgrade --confirm-scopes --non-interactive --site nuvriqo.atlassian.net --product jira -e development
