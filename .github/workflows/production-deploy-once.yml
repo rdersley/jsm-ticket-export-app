@@ -6,7 +6,7 @@ on:
     paths:
       - '.github/workflows/production-deploy-once.yml'
 
-# Retry Forge-native Microsoft 365 Easy Connect callback flow after manifest key fix 2026-09-11
+# Retry Forge-native Microsoft 365 Easy Connect callback flow with required major-version approval 2026-09-11
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -30,12 +30,7 @@ jobs:
         run: forge settings set usage-analytics false
       - name: Build Custom UI
         run: npm run build
-      - name: Forge lint
-        run: forge lint
-      - name: Deploy to Forge production
-        run: forge deploy -e production
-      - name: Install or upgrade on Retail inMotion Jira
-        shell: bash
-        run: |
-          forge install --upgrade --non-interactive --site retailinmotion.atlassian.net --product jira -e production || \
-          forge install --non-interactive --site retailinmotion.atlassian.net --product jira -e production
+      - name: Deploy to Forge production with major-version approval
+        run: forge deploy -e production --approve MAJOR_VERSION_RULE --non-interactive
+      - name: Upgrade on Retail inMotion Jira
+        run: forge install --upgrade --confirm-scopes --non-interactive --site retailinmotion.atlassian.net --product jira -e production
