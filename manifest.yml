@@ -44,7 +44,7 @@ modules:
 
   webtrigger:
     - key: microsoft-oauth-callback
-      function: microsoft-oauth-callback-fn
+      function: ms-oauth-callback
       urlFormat: v2
 
   function:
@@ -55,7 +55,7 @@ modules:
     - key: export-worker
       handler: asyncExport.handler
       timeoutSeconds: 900
-    - key: microsoft-oauth-callback-fn
+    - key: ms-oauth-callback
       handler: microsoftOAuthCallback.handler
 
 resources:
