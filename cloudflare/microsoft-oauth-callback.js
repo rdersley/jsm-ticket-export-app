@@ -1,3 +1,25 @@
+const decodeBase64Url = value => {
+  const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+  return atob(padded);
+};
+
+const callbackFromState = state => {
+  const parts = String(state || '').split('.');
+  if (parts.length < 2) return '';
+  try {
+    const callback = decodeBase64Url(parts.slice(1).join('.'));
+    const url = new URL(callback);
+    const allowed = url.protocol === 'https:' && (
+      url.hostname.endsWith('.webtrigger.atlassian.app') ||
+      url.hostname.endsWith('.hello.atlassian-dev.net')
+    );
+    return allowed ? url.toString() : '';
+  } catch {
+    return '';
+  }
+};
+
 export default {
   async fetch(request) {
     const url = new URL(request.url);
@@ -5,13 +27,40 @@ export default {
     const state = url.searchParams.get('state') || '';
     const error = url.searchParams.get('error') || '';
     const errorDescription = url.searchParams.get('error_description') || '';
+    const callbackUrl = callbackFromState(state);
 
-    const payload = JSON.stringify({
+    const relayPayload = { code, state, error, errorDescription };
+    let relayOk = false;
+    let relayMessage = '';
+
+    if (callbackUrl) {
+      try {
+        const response = await fetch(callbackUrl, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(relayPayload)
+        });
+        relayOk = response.ok;
+        if (!response.ok) relayMessage = `Forge callback returned ${response.status}.`;
+      } catch (relayError) {
+        relayMessage = relayError?.message || 'Could not reach the Forge callback.';
+      }
+    } else {
+      relayMessage = 'The Jira callback address was missing or invalid.';
+    }
+
+    const success = !error && relayOk;
+    const title = success ? 'Microsoft 365 connected' : 'Microsoft connection was not completed';
+    const status = success
+      ? 'You can close this tab and return to Jira. The connection will update automatically.'
+      : (errorDescription || relayMessage || error || 'Return to Jira and try again.');
+
+    const legacyPayload = JSON.stringify({
       type: 'nuvriqo-microsoft-oauth',
       code,
       state,
-      error,
-      errorDescription
+      error: error || (!relayOk ? 'callback_failed' : ''),
+      errorDescription: errorDescription || relayMessage
     }).replace(/</g, '\\u003c');
 
     const html = `<!doctype html>
@@ -22,22 +71,19 @@ export default {
   <title>Nuvriqo Microsoft 365 Connection</title>
   <style>
     body{font-family:Arial,sans-serif;margin:0;background:#f7f8f9;color:#172b4d;display:grid;place-items:center;min-height:100vh}
-    main{background:white;border:1px solid #dfe1e6;border-radius:12px;padding:28px;max-width:520px;box-shadow:0 4px 16px rgba(9,30,66,.08)}
+    main{background:white;border:1px solid #dfe1e6;border-radius:12px;padding:28px;max-width:540px;box-shadow:0 4px 16px rgba(9,30,66,.08)}
     h1{font-size:22px;margin:0 0 10px}p{line-height:1.5;margin:0}
   </style>
 </head>
 <body>
   <main>
-    <h1>${error ? 'Microsoft connection was not completed' : 'Microsoft 365 connected'}</h1>
-    <p id="status">${error ? 'You can close this window and try again from Jira.' : 'Finishing the connection in Jira…'}</p>
+    <h1>${title}</h1>
+    <p id="status">${String(status).replace(/</g, '&lt;')}</p>
   </main>
   <script>
-    const payload = ${payload};
+    const payload = ${legacyPayload};
     if (window.opener) {
-      window.opener.postMessage(payload, '*');
-      setTimeout(() => window.close(), 600);
-    } else {
-      document.getElementById('status').textContent = 'Return to Jira to finish the connection.';
+      try { window.opener.postMessage(payload, '*'); } catch {}
     }
   </script>
 </body>
