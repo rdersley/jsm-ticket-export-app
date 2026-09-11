@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { invoke } from '@forge/bridge';
+import { invoke, router } from '@forge/bridge';
 import './styles.css';
 
 const downloadBase64=(base64,filename)=>{const b=atob(base64);const bytes=new Uint8Array(b.length);for(let i=0;i<b.length;i++)bytes[i]=b.charCodeAt(i);const url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));const a=document.createElement('a');a.href=url;a.download=filename||'jira-report.xlsx';a.click();URL.revokeObjectURL(url)};
@@ -63,34 +63,29 @@ function EmailSettings({initial,close,notify}){
  const save=async()=>{setSaving(true);try{const saved=await invoke('email:settings:save',{settings});setSettings({...saved,secret:''});setConnection(saved.microsoftConnection||connection);setMessage('Email settings saved.');notify('Email settings saved.')}catch(e){setMessage(e.message||'Could not save email settings.')}finally{setSaving(false)}};
  const test=async()=>{setSaving(true);try{await invoke('email:test',{address:testAddress});setMessage(`Test email sent to ${testAddress}.`)}catch(e){setMessage(e.message||'Test email failed.')}finally{setSaving(false)}};
  const connectMicrosoft=async()=>{
-  const popup=window.open('about:blank','nuvriqo-microsoft-oauth','popup=yes,width=620,height=760');
-  if(!popup){setMessage('Your browser blocked the Microsoft sign-in window. Allow pop-ups for Jira and try again.');return;}
-  try{popup.document.title='Connecting to Microsoft 365';popup.document.body.innerHTML='<p style="font-family:Arial,sans-serif;padding:24px">Opening Microsoft sign-in…</p>';}catch{}
-  setSaving(true);setMessage('Opening Microsoft sign-in…');
+  setSaving(true);setMessage('Preparing Microsoft sign-in…');
   try{
    const started=await invoke('email:microsoft:begin');
-   popup.location.replace(started.authorizeUrl);
-   const result=await new Promise((resolve,reject)=>{
-    let finished=false;
-    const cleanup=()=>{window.removeEventListener('message',onMessage);clearInterval(closedCheck);clearTimeout(expiry)};
-    const onMessage=event=>{
-     if(event.origin!=='https://auth.nuvriqo.com'||event.data?.type!=='nuvriqo-microsoft-oauth')return;
-     finished=true;cleanup();
-     if(event.data.error)reject(new Error(event.data.errorDescription||event.data.error));
-     else resolve(event.data);
-    };
-    window.addEventListener('message',onMessage);
-    const closedCheck=setInterval(()=>{if(!finished&&popup.closed){cleanup();reject(new Error('Microsoft sign-in was closed before the connection completed.'));}},700);
-    const expiry=setTimeout(()=>{if(!finished){cleanup();try{popup.close()}catch{}reject(new Error('Microsoft sign-in timed out. Please try again.'));}},10*60*1000);
-   });
-   const connected=await invoke('email:microsoft:complete',{code:result.code,state:result.state});
-   setConnection(connected);
-   const next={...settings,provider:'microsoft-easy',senderEmail:settings.senderEmail||connected.email||'',senderName:settings.senderName||connected.displayName||'Nuvriqo Excel Report Manager'};
-   const saved=await invoke('email:settings:save',{settings:next});
-   setSettings({...saved,secret:''});
-   setMessage(`Connected to Microsoft 365 as ${connected.email||connected.displayName||'your account'}.`);
-   notify('Microsoft 365 connected.');
-  }catch(e){try{popup.close()}catch{}setMessage(e.message||'Microsoft 365 connection failed.')}finally{setSaving(false)}
+   await router.open(started.authorizeUrl);
+   setMessage('Microsoft sign-in opened in a new tab. Complete the sign-in there; this page will update automatically.');
+   for(let attempt=0;attempt<180;attempt++){
+    await new Promise(resolve=>setTimeout(resolve,2000));
+    const status=await invoke('email:microsoft:connect-status',{requestId:started.requestId});
+    if(status?.status==='success'){
+     const connected=status.connection||await invoke('email:microsoft:status');
+     setConnection(connected);
+     const next={...settings,provider:'microsoft-easy',senderEmail:settings.senderEmail||connected.email||'',senderName:settings.senderName||connected.displayName||'Nuvriqo Excel Report Manager'};
+     const saved=await invoke('email:settings:save',{settings:next});
+     setSettings({...saved,secret:''});
+     setMessage(`Connected to Microsoft 365 as ${connected.email||connected.displayName||'your account'}.`);
+     notify('Microsoft 365 connected.');
+     return;
+    }
+    if(status?.status==='failed')throw new Error(status.message||'Microsoft 365 connection failed.');
+    if(status?.status==='expired')throw new Error('Microsoft sign-in expired. Please try again.');
+   }
+   throw new Error('Microsoft sign-in timed out. Please try again.');
+  }catch(e){setMessage(e.message||'Microsoft 365 connection failed.')}finally{setSaving(false)}
  };
  const disconnectMicrosoft=async()=>{
   setSaving(true);
