@@ -63,11 +63,13 @@ function EmailSettings({initial,close,notify}){
  const save=async()=>{setSaving(true);try{const saved=await invoke('email:settings:save',{settings});setSettings({...saved,secret:''});setConnection(saved.microsoftConnection||connection);setMessage('Email settings saved.');notify('Email settings saved.')}catch(e){setMessage(e.message||'Could not save email settings.')}finally{setSaving(false)}};
  const test=async()=>{setSaving(true);try{await invoke('email:test',{address:testAddress});setMessage(`Test email sent to ${testAddress}.`)}catch(e){setMessage(e.message||'Test email failed.')}finally{setSaving(false)}};
  const connectMicrosoft=async()=>{
+  const popup=window.open('about:blank','nuvriqo-microsoft-oauth','popup=yes,width=620,height=760');
+  if(!popup){setMessage('Your browser blocked the Microsoft sign-in window. Allow pop-ups for Jira and try again.');return;}
+  try{popup.document.title='Connecting to Microsoft 365';popup.document.body.innerHTML='<p style="font-family:Arial,sans-serif;padding:24px">Opening Microsoft sign-in…</p>';}catch{}
   setSaving(true);setMessage('Opening Microsoft sign-in…');
   try{
    const started=await invoke('email:microsoft:begin');
-   const popup=window.open(started.authorizeUrl,'nuvriqo-microsoft-oauth','popup=yes,width=620,height=760');
-   if(!popup)throw new Error('Your browser blocked the Microsoft sign-in window. Allow pop-ups for Jira and try again.');
+   popup.location.replace(started.authorizeUrl);
    const result=await new Promise((resolve,reject)=>{
     let finished=false;
     const cleanup=()=>{window.removeEventListener('message',onMessage);clearInterval(closedCheck);clearTimeout(expiry)};
@@ -88,7 +90,7 @@ function EmailSettings({initial,close,notify}){
    setSettings({...saved,secret:''});
    setMessage(`Connected to Microsoft 365 as ${connected.email||connected.displayName||'your account'}.`);
    notify('Microsoft 365 connected.');
-  }catch(e){setMessage(e.message||'Microsoft 365 connection failed.')}finally{setSaving(false)}
+  }catch(e){try{popup.close()}catch{}setMessage(e.message||'Microsoft 365 connection failed.')}finally{setSaving(false)}
  };
  const disconnectMicrosoft=async()=>{
   setSaving(true);
