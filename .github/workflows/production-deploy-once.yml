@@ -6,7 +6,7 @@ on:
     paths:
       - '.github/workflows/production-deploy-once.yml'
 
-# Triggered for hardened Microsoft 365 Easy Connect popup handling 2026-09-11
+# Triggered for Forge-native Microsoft 365 Easy Connect callback flow 2026-09-11
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -34,3 +34,8 @@ jobs:
         run: forge lint
       - name: Deploy to Forge production
         run: forge deploy -e production
+      - name: Install or upgrade on Retail inMotion Jira
+        shell: bash
+        run: |
+          forge install --upgrade --non-interactive --site retailinmotion.atlassian.net --product jira -e production || \
+          forge install --non-interactive --site retailinmotion.atlassian.net --product jira -e production
