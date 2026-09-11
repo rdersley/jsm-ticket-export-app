@@ -6,7 +6,7 @@ on:
     paths:
       - '.github/workflows/production-deploy-once.yml'
 
-# Triggered for Forge-native Microsoft 365 Easy Connect callback flow 2026-09-11
+# Retry Forge-native Microsoft 365 Easy Connect callback flow after manifest key fix 2026-09-11
 jobs:
   deploy:
     runs-on: ubuntu-latest
