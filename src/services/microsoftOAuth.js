@@ -1,14 +1,17 @@
-import { fetch } from '@forge/api';
+import { fetch, webTrigger } from '@forge/api';
 import { kvs } from '@forge/kvs';
 import crypto from 'node:crypto';
 
 const TOKEN_KEY = 'email:microsoft-oauth-token';
 const META_KEY = 'email:microsoft-oauth-meta';
 const STATE_PREFIX = 'email:microsoft-oauth-state:';
+const RESULT_PREFIX = 'email:microsoft-oauth-result:';
+const WEBTRIGGER_KEY = 'microsoft-oauth-callback';
 const DEFAULT_REDIRECT_URI = 'https://auth.nuvriqo.com/microsoft/callback';
 const SCOPES = 'openid profile offline_access User.Read Mail.Send Mail.Send.Shared';
 
 const base64url = value => Buffer.from(value).toString('base64url');
+const fromBase64url = value => Buffer.from(value, 'base64url').toString('utf8');
 const clientId = () => String(process.env.MS_CLIENT_ID || '').trim();
 const clientSecret = () => String(process.env.MS_CLIENT_SECRET || '').trim();
 const redirectUri = () => String(process.env.MS_REDIRECT_URI || DEFAULT_REDIRECT_URI).trim();
@@ -18,20 +21,59 @@ function requireAppConfig() {
   if (!clientSecret()) throw new Error('Microsoft Easy Connect client secret is not configured.');
 }
 
+function parseState(state) {
+  const raw = String(state || '').trim();
+  const dot = raw.indexOf('.');
+  if (dot <= 0) return { nonce: raw, callbackUrl: '' };
+  const nonce = raw.slice(0, dot);
+  let callbackUrl = '';
+  try { callbackUrl = fromBase64url(raw.slice(dot + 1)); } catch {}
+  return { nonce, callbackUrl };
+}
+
+export function getMicrosoftStateNonce(state) {
+  return parseState(state).nonce;
+}
+
+async function setConnectResult(nonce, result) {
+  if (!nonce) return;
+  await kvs.set(`${RESULT_PREFIX}${nonce}`, {
+    ...result,
+    expiresAt: Date.now() + (15 * 60 * 1000)
+  });
+}
+
 export async function getMicrosoftConnection() {
   const meta = await kvs.get(META_KEY);
   return meta ? { connected: true, ...meta } : { connected: false };
 }
 
+export async function getMicrosoftConnectStatus(requestId) {
+  const nonce = String(requestId || '').trim();
+  if (!nonce) return { status: 'missing' };
+  const result = await kvs.get(`${RESULT_PREFIX}${nonce}`);
+  if (!result) return { status: 'pending' };
+  if (Number(result.expiresAt || 0) < Date.now()) {
+    await kvs.delete(`${RESULT_PREFIX}${nonce}`);
+    return { status: 'expired' };
+  }
+  return result;
+}
+
 export async function beginMicrosoftConnect() {
   requireAppConfig();
-  const state = base64url(crypto.randomBytes(32));
+  const nonce = base64url(crypto.randomBytes(24));
   const verifier = base64url(crypto.randomBytes(48));
   const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
-  await kvs.set(`${STATE_PREFIX}${state}`, {
+  const callbackUrl = await webTrigger.getUrl(WEBTRIGGER_KEY);
+  const state = `${nonce}.${base64url(callbackUrl)}`;
+
+  await kvs.set(`${STATE_PREFIX}${nonce}`, {
     verifier,
+    state,
     expiresAt: Date.now() + (10 * 60 * 1000)
   });
+  await kvs.delete(`${RESULT_PREFIX}${nonce}`).catch(() => {});
 
   const params = new URLSearchParams({
     client_id: clientId(),
@@ -47,7 +89,8 @@ export async function beginMicrosoftConnect() {
 
   return {
     authorizeUrl: `https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?${params.toString()}`,
-    redirectUri: redirectUri()
+    redirectUri: redirectUri(),
+    requestId: nonce
   };
 }
 
@@ -79,9 +122,11 @@ export async function completeMicrosoftConnect({ code, state } = {}) {
   const safeState = String(state || '').trim();
   if (!safeCode || !safeState) throw new Error('Microsoft authorization response is incomplete.');
 
-  const stateKey = `${STATE_PREFIX}${safeState}`;
+  const { nonce } = parseState(safeState);
+  if (!nonce) throw new Error('Microsoft connection state is invalid.');
+  const stateKey = `${STATE_PREFIX}${nonce}`;
   const pending = await kvs.get(stateKey);
-  if (!pending?.verifier || Number(pending.expiresAt || 0) < Date.now()) {
+  if (!pending?.verifier || pending.state !== safeState || Number(pending.expiresAt || 0) < Date.now()) {
     if (pending) await kvs.delete(stateKey);
     throw new Error('Microsoft connection request has expired. Please connect again.');
   }
@@ -115,7 +160,19 @@ export async function completeMicrosoftConnect({ code, state } = {}) {
     connectedAt: new Date().toISOString()
   };
   await kvs.set(META_KEY, meta);
-  return { connected: true, ...meta };
+  const result = { status: 'success', connection: { connected: true, ...meta } };
+  await setConnectResult(nonce, result);
+  return { connected: true, ...meta, requestId: nonce };
+}
+
+export async function failMicrosoftConnect(state, error) {
+  const nonce = getMicrosoftStateNonce(state);
+  if (!nonce) return;
+  await kvs.delete(`${STATE_PREFIX}${nonce}`).catch(() => {});
+  await setConnectResult(nonce, {
+    status: 'failed',
+    message: String(error?.message || error || 'Microsoft 365 connection failed.')
+  });
 }
 
 export async function disconnectMicrosoft() {
