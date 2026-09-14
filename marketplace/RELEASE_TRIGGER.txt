@@ -1,3 +1,3 @@
-Marketplace v1 production release trigger — 2026-09-12
+Marketplace v1 production release trigger — 2026-09-14
 
-This file exists only to provide a controlled push trigger for the production release workflow. Update it only when intentionally releasing main to Forge production.
+Release reason: harden scheduled delivery so a missed Forge trigger window catches up later on the same eligible day instead of skipping the schedule entirely.
