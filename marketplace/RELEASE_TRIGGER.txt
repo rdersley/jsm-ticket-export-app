@@ -1,3 +1,3 @@
 Marketplace v1 production release trigger — 2026-09-14
 
-Release reason: harden scheduled delivery so a missed Forge trigger window catches up later on the same eligible day instead of skipping the schedule entirely.
+Release reason: move scheduled report generation and email delivery into the existing long-running async consumer so large scheduled reports are not killed by the Forge scheduled-trigger runtime limit. Catch-up scheduling remains enabled for the rest of the eligible day.
