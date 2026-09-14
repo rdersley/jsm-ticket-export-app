@@ -21,12 +21,16 @@ test('disabled reports are never due', () => {
   assert.equal(isDue(r, new Date('2026-08-31T07:00:00Z')), false);
 });
 
-test('weekly report is due on configured weekday and time', () => {
+test('weekly report is due on configured weekday at configured time', () => {
   assert.equal(isDue(report(), new Date('2026-08-31T07:04:00Z')), true);
 });
 
-test('weekly report is not due outside the dispatcher tolerance window', () => {
-  assert.equal(isDue(report(), new Date('2026-08-31T07:10:00Z')), false);
+test('weekly report remains due later the same day for catch-up', () => {
+  assert.equal(isDue(report(), new Date('2026-08-31T12:30:00Z')), true);
+});
+
+test('weekly report is not due before configured time', () => {
+  assert.equal(isDue(report(), new Date('2026-08-31T06:59:00Z')), false);
 });
 
 test('weekday reports do not run on weekends', () => {
@@ -37,8 +41,8 @@ test('weekday reports do not run on weekends', () => {
 
 test('monthly reports run only on configured day', () => {
   const r = report({ frequency: 'monthly', monthDay: 15 });
-  assert.equal(isDue(r, new Date('2026-09-15T07:04:00Z')), true);
-  assert.equal(isDue(r, new Date('2026-09-16T07:04:00Z')), false);
+  assert.equal(isDue(r, new Date('2026-09-15T11:04:00Z')), true);
+  assert.equal(isDue(r, new Date('2026-09-16T11:04:00Z')), false);
 });
 
 test('invalid timezone safely falls back to UTC', () => {
@@ -46,19 +50,19 @@ test('invalid timezone safely falls back to UTC', () => {
   assert.equal(isDue(r, new Date('2026-09-01T08:04:00Z')), true);
 });
 
-test('run key is stable throughout one due window', () => {
+test('run key is stable throughout one scheduled day', () => {
   const r = report({ frequency: 'daily' });
-  assert.equal(runKey(r, new Date('2026-09-01T07:00:00Z')), runKey(r, new Date('2026-09-01T07:08:00Z')));
+  assert.equal(runKey(r, new Date('2026-09-01T07:00:00Z')), runKey(r, new Date('2026-09-01T18:08:00Z')));
 });
 
 test('Europe Dublin schedule follows summer daylight saving time', () => {
   const r = report({ frequency: 'daily', time: '08:00', timezone: 'Europe/Dublin' });
   assert.equal(isDue(r, new Date('2026-07-15T07:04:00Z')), true);
-  assert.equal(isDue(r, new Date('2026-07-15T08:04:00Z')), false);
+  assert.equal(isDue(r, new Date('2026-07-15T06:59:00Z')), false);
 });
 
 test('Europe Dublin schedule follows winter UTC time', () => {
   const r = report({ frequency: 'daily', time: '08:00', timezone: 'Europe/Dublin' });
   assert.equal(isDue(r, new Date('2026-12-15T08:04:00Z')), true);
-  assert.equal(isDue(r, new Date('2026-12-15T07:04:00Z')), false);
+  assert.equal(isDue(r, new Date('2026-12-15T07:59:00Z')), false);
 });
