@@ -69,9 +69,41 @@ export async function cleanupExport(jobId) {
   return { ok: true };
 }
 
+async function runScheduledDelivery(reportId, occurrence) {
+  const key = `schedule:last:${reportId}`;
+  try {
+    const report = await getReport(reportId);
+    if (!report) throw new Error('Report not found.');
+
+    const result = await runReport(report, { delivery: true, history: true, mode: 'scheduled' });
+    await kvs.set(key, {
+      occurrence,
+      status: 'success',
+      completedAt: new Date().toISOString(),
+      issueCount: result.entry?.issueCount ?? null,
+      durationMs: result.entry?.durationMs ?? null
+    });
+  } catch (error) {
+    await kvs.set(key, {
+      occurrence,
+      status: 'failed',
+      failedAt: new Date().toISOString(),
+      message: error?.message || 'Scheduled report failed.'
+    });
+    console.error(`Scheduled report ${reportId} failed`, error);
+  }
+}
+
 export async function handler(event) {
-  const { jobId, reportId } = event.body || {};
-  if (!jobId || !reportId) return;
+  const { jobId, reportId, scheduled = false, occurrence = null } = event.body || {};
+  if (!reportId) return;
+
+  if (scheduled) {
+    await runScheduledDelivery(reportId, occurrence);
+    return;
+  }
+
+  if (!jobId) return;
 
   const started = Date.now();
   await kvs.set(statusKey(jobId), {
