@@ -6,11 +6,11 @@ function partsInZone(date, timeZone) {
   return Object.fromEntries(parts.map(p => [p.type, p.value]));
 }
 
-function timeReachedWithinWindow(parts, configuredTime, windowMinutes = 9) {
+function timeReached(parts, configuredTime) {
   const [h,m] = (configuredTime || '08:00').split(':').map(Number);
   const configured = h * 60 + m;
   const actual = Number(parts.hour) * 60 + Number(parts.minute);
-  return actual >= configured && actual <= configured + windowMinutes;
+  return actual >= configured;
 }
 
 export function isDue(report, now = new Date()) {
@@ -19,7 +19,7 @@ export function isDue(report, now = new Date()) {
   let p;
   try { p = partsInZone(now, s.timezone || 'UTC'); }
   catch { p = partsInZone(now, 'UTC'); }
-  if (!timeReachedWithinWindow(p, s.time || '08:00')) return false;
+  if (!timeReached(p, s.time || '08:00')) return false;
   if (s.frequency === 'daily') return true;
   if (s.frequency === 'weekdays') return !['Saturday','Sunday'].includes(p.weekday);
   if (s.frequency === 'weekly') {
