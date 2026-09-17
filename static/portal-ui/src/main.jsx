@@ -59,12 +59,14 @@ function App() {
   const run = async report => {
     setBusy(b => ({ ...b, [report.id]: true }));
     setMessage(`Generating ${report.name}…`);
+    let jobId;
     try {
       const started = await invoke('portal:run', { reportId: report.id, portalId });
-      const status = await readJob(started.jobId);
+      jobId = started.jobId;
+      const status = await readJob(jobId);
       let base64 = '';
       for (let i = 0; i < Number(status.chunkCount || 0); i++) {
-        base64 += await invoke('portal:job-chunk', { jobId: started.jobId, index: i });
+        base64 += await invoke('portal:job-chunk', { jobId, index: i });
       }
       downloadBase64(base64, status.filename);
       setMessage(`${report.name} generated successfully.`);
@@ -72,6 +74,7 @@ function App() {
     } catch (e) {
       setMessage(e?.message || 'Could not generate the report.');
     } finally {
+      if (jobId) await invoke('portal:job-cleanup', { jobId }).catch(() => {});
       setBusy(b => ({ ...b, [report.id]: false }));
     }
   };
