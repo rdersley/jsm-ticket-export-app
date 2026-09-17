@@ -57,7 +57,14 @@ function accountIdFrom(context) {
 }
 
 function portalIdFrom(context) {
-  return String(context?.extension?.portal?.id || context?.portal?.id || '').trim();
+  const direct = String(context?.extension?.portal?.id || context?.portal?.id || '').trim();
+  if (direct) return direct;
+
+  // portalUserMenuAction exposes the portal page URL as extension.location.
+  // Derive the portal ID from that URL when there is no explicit portal object.
+  const location = String(context?.extension?.location || context?.location || '').trim();
+  const match = location.match(/\/portal\/(\d+)(?:\/|$|\?)/i);
+  return match?.[1] || '';
 }
 
 async function requireAdmin() {
@@ -140,7 +147,8 @@ async function listPortalReports(context) {
         generatedAt: latest.generatedAt,
         issueCount: latest.issueCount,
         filename: latest.filename,
-        bytes: latest.bytes
+        bytes: latest.bytes,
+        chunkCount: latest.chunkCount
       } : null
     });
   }
@@ -283,12 +291,11 @@ resolver.define('portal-admin:customers', async ({ payload }) => {
   const query = String(payload.query || '').trim();
   if (!serviceDeskId) return [];
 
-  // This is an admin-only configuration action. Use the signed-in Jira admin's
-  // JSM permissions rather than app context. This endpoint is permission-aware
-  // and is the canonical JSM source for portal customers on a service desk.
+  // The JSM customer endpoint is experimental and returns HTTP 412 unless the
+  // caller explicitly opts in. This is an admin-only configuration action.
   const response = await api.asUser().requestJira(
     route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?query=${query}&limit=50`,
-    { headers: { Accept: 'application/json' } }
+    { headers: { Accept: 'application/json', 'X-ExperimentalApi': 'opt-in' } }
   );
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
