@@ -1,6 +1,5 @@
 Marketplace production release trigger — 2026-09-17
 
-Release reason: deploy the Portal Reports reliability fix to retailinmotion.atlassian.net after the corrected manifest validation passed successfully. Customer-side report listing and access checks are KVS-only with no Jira/JSM REST calls during portal page load. Selected organisation memberships are resolved and cached when the Jira admin saves Portal Access. The portal UI also has an 8-second load timeout so it cannot remain on an indefinite spinner.
+Release reason: force a fresh Portal Reports module/resource instance on retailinmotion.atlassian.net after confirming the visible grey spinner is Atlassian's module-loading placeholder rather than the app's own loading state. The portal module key and native resource key have been changed to v2, and the app-side spinner has been removed so successful mounting is immediately visible as a Reports heading and loading text.
 
-Validated source commit: 53ff54947490f1d2f5b330943317b66fa5813908
-Production trigger refreshed after green development run.
+Portal access remains KVS-only during customer page load with an 8-second resolver timeout.
