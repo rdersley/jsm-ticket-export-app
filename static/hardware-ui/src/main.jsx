@@ -3,11 +3,11 @@ import { createRoot } from 'react-dom/client';
 import { invoke } from '@forge/bridge';
 import './styles.css';
 
-const downloadBase64 = (base64, filename) => {
+const downloadBase64 = (base64, filename, mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') => {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = filename || 'weekly-sd-hardware-report.xlsx';
@@ -55,8 +55,16 @@ function App() {
     awaitingReturnStatuses: '',
     maxIssues: 5000
   });
+  const [repair, setRepair] = useState({
+    jql: 'project = HW AND statusCategory = Done AND resolution IS EMPTY',
+    resolutionName: 'Done',
+    maxIssues: 10000
+  });
   const [busy, setBusy] = useState(false);
+  const [repairBusy, setRepairBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [repairMessage, setRepairMessage] = useState('');
+  const [repairSummary, setRepairSummary] = useState(null);
   const [lastResult, setLastResult] = useState(null);
 
   useEffect(() => {
@@ -72,9 +80,14 @@ function App() {
         awaitingReturnStatuses: (defaults.awaitingReturnStatuses || []).join(', ')
       }));
     }).catch(() => {});
+
+    invoke('report:resolution-repair:defaults').then(defaults => {
+      if (defaults) setRepair(current => ({ ...current, ...defaults }));
+    }).catch(() => {});
   }, []);
 
   const set = (name, value) => setForm(f => ({ ...f, [name]: value }));
+  const setRepairField = (name, value) => setRepair(f => ({ ...f, [name]: value }));
 
   const generate = async () => {
     setBusy(true);
@@ -122,6 +135,46 @@ function App() {
       if (jobId) await invoke('report:run:cleanup', { jobId }).catch(() => {});
     } finally {
       setBusy(false);
+    }
+  };
+
+  const generateResolutionRepair = async () => {
+    setRepairBusy(true);
+    setRepairSummary(null);
+    setRepairMessage('Queuing the historical resolution-date scan…');
+    let jobId = null;
+    try {
+      const started = await invoke('report:resolution-repair:start', {
+        ...repair,
+        maxIssues: Number(repair.maxIssues || 10000)
+      });
+      jobId = started?.jobId;
+      if (!jobId) throw new Error('The repair scan could not be queued.');
+      setRepairMessage('Reading issue histories and reconstructing the original Done dates in the background…');
+
+      for (let attempt = 0; attempt < 450; attempt++) {
+        const status = await invoke('report:run:status', { jobId });
+        if (status?.state === 'ready') {
+          let base64 = '';
+          for (let i = 0; i < Number(status.chunkCount || 0); i++) {
+            base64 += await invoke('report:run:chunk', { jobId, index: i });
+          }
+          downloadBase64(base64, status.filename || 'jira-resolution-date-repair.csv', 'text/csv;charset=utf-8');
+          setRepairSummary(status.summary || {});
+          setRepairMessage(`Repair CSV created. Scanned ${status.summary?.scanned ?? status.issueCount ?? 0} tickets; ${status.summary?.ready ?? 0} have a historical resolved date ready to import; ${status.summary?.needsReview ?? 0} are flagged for review.`);
+          await invoke('report:run:cleanup', { jobId }).catch(() => {});
+          return;
+        }
+        if (status?.state === 'failed') throw new Error(status.message || 'Resolution repair scan failed.');
+        if (status?.state === 'missing') throw new Error('The repair job could not be found.');
+        await wait(2000);
+      }
+      throw new Error('The repair scan is taking longer than expected. Please try again shortly.');
+    } catch (error) {
+      setRepairMessage(error?.message || 'The resolution repair scan could not be completed.');
+      if (jobId) await invoke('report:run:cleanup', { jobId }).catch(() => {});
+    } finally {
+      setRepairBusy(false);
     }
   };
 
@@ -195,6 +248,29 @@ function App() {
       </div>
       {lastResult.warningCount > 0 && <div className="warning">{lastResult.warningCount} Jira changelog item(s) could not be read. The workbook includes the warning details.</div>}
     </section>}
+
+    <section className="panel">
+      <div className="sectionHead">
+        <div>
+          <h2>Repair missing historical Resolved Dates</h2>
+          <p>For tickets already in a Done-category status but missing Jira Resolution, scan their changelog and build a bulk-import CSV using the original transition date.</p>
+        </div>
+        <button className="primary" disabled={repairBusy} onClick={generateResolutionRepair}>{repairBusy ? 'Scanning…' : 'Generate repair CSV'}</button>
+      </div>
+      {repairMessage && <div className="notice">{repairMessage}</div>}
+      <label>Affected-ticket JQL<textarea rows="4" value={repair.jql} onChange={e => setRepairField('jql', e.target.value)} /></label>
+      <div className="grid two">
+        <label>Resolution value<input value={repair.resolutionName} onChange={e => setRepairField('resolutionName', e.target.value)} placeholder="Done" /><small>This must match a Resolution value available in Jira when you import the CSV.</small></label>
+        <label>Maximum tickets<input type="number" min="1" max="10000" value={repair.maxIssues} onChange={e => setRepairField('maxIssues', e.target.value)} /></label>
+      </div>
+      <div className="hint">The CSV contains Issue Key, Resolution and Resolved plus audit columns. During Jira CSV import map <strong>Issue Key</strong>, <strong>Resolution</strong> and <strong>Resolved</strong>. Use date format <code>yyyy-MM-dd'T'HH:mm:ss.SSSZ</code>. Rows marked <strong>Needs Review = YES</strong> were reopened/reclosed or required a fallback and should be checked before import.</div>
+      {repairSummary && <div className="stats">
+        <div><strong>{repairSummary.scanned ?? 0}</strong><span>Scanned</span></div>
+        <div><strong>{repairSummary.ready ?? 0}</strong><span>Ready to import</span></div>
+        <div><strong>{repairSummary.needsReview ?? 0}</strong><span>Needs review</span></div>
+        <div><strong>{repairSummary.noDate ?? 0}</strong><span>No date found</span></div>
+      </div>}
+    </section>
   </main>;
 }
 
