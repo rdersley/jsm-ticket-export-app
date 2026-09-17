@@ -1,3 +1,3 @@
 Marketplace production release trigger — 2026-09-17
 
-Release reason: deploy the Portal Reports admin layout polish to production on retailinmotion.atlassian.net after confirming portal customer search and selection now work correctly.
+Release reason: deploy the Portal Reports customer-search fix to production on retailinmotion.atlassian.net. The admin-only JSM customer lookup now runs in the signed-in Jira administrator context, while the customer portal remains consent-free and app-context controlled.
