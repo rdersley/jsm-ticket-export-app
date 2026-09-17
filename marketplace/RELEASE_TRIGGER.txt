@@ -1,3 +1,3 @@
 Marketplace production release trigger — 2026-09-17
 
-Release reason: deploy the native UI Kit Portal Reports customer experience to production, removing the Custom UI iframe consent gate while preserving controlled report access, generation and downloads on retailinmotion.atlassian.net.
+Release reason: deploy the Portal Reports admin layout polish to production on retailinmotion.atlassian.net after confirming portal customer search and selection now work correctly.
