@@ -50,7 +50,7 @@ modules:
     - key: nuvriqo-excel-portal-reports-v5
       resource: portal-native-ui-v5
       resolver:
-        function: portal-customer-resolver
+        function: portal-customer
       render: native
       unlicensedAccess:
         - customer
@@ -79,7 +79,7 @@ modules:
       timeoutSeconds: 900
     - key: portal-resolver
       handler: portalReports.handler
-    - key: portal-customer-resolver
+    - key: portal-customer
       handler: portalCustomer.handler
     - key: portal-worker
       handler: portalReports.portalWorker
