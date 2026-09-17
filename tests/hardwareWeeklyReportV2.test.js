@@ -27,6 +27,12 @@ test('buildDualJqlV2 strips user ORDER BY before wrapping the base query', () =>
   assert.equal((queries.hwPeriod.match(/ORDER BY/g) || []).length, 1);
 });
 
+test('buildDualJqlV2 falls back to project queries when custom JQL is blank', () => {
+  const queries = buildDualJqlV2({ sdProjectKey: 'SD', hwProjectKey: 'HW', sdJql: '', hwJql: '' }, '2026-09-07', '2026-09-14');
+  assert.match(queries.sd, /project = "SD"/);
+  assert.match(queries.hwOpen, /project = "HW"/);
+});
+
 test('linkedKeysV2 detects linked SD/HW issues', () => {
   assert.deepEqual(linkedKeysV2({ fields: { issuelinks: [
     { outwardIssue: { key: 'HW-22' } },
