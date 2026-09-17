@@ -21,6 +21,12 @@ modules:
       title: Portal Reports
       layout: blank
       useAsConfig: true
+    - key: nuvriqo-weekly-hardware-report-admin
+      resource: hardware-ui
+      resolver:
+        function: resolver
+      title: Weekly SD → Hardware Report
+      layout: blank
 
   jira:projectPage:
     - key: nuvriqo-excel-report-manager-project
@@ -28,12 +34,6 @@ modules:
       resolver:
         function: resolver
       title: Excel Report Manager
-      layout: blank
-    - key: nuvriqo-weekly-hardware-report
-      resource: hardware-ui
-      resolver:
-        function: resolver
-      title: Weekly SD → Hardware Report
       layout: blank
 
   jira:issueNavigatorAction:
