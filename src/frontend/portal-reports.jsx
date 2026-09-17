@@ -1,109 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import ForgeReconciler, {
-  Button,
-  Heading,
-  Inline,
-  Lozenge,
-  Stack,
-  Text
-} from '@forge/react';
-import { invoke } from '@forge/bridge';
+import React from 'react';
+import ForgeReconciler, { Heading, Stack, Text } from '@forge/react';
 
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-const withTimeout = (promise, ms, message) => Promise.race([
-  promise,
-  new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms))
-]);
-
-async function waitForJob(jobId) {
-  for (let attempt = 0; attempt < 300; attempt += 1) {
-    const status = await invoke('portal:job-status', { jobId });
-    if (status?.state === 'ready') return status;
-    if (status?.state === 'failed') throw new Error(status.message || 'Report generation failed.');
-    if (status?.state === 'missing') throw new Error('The report job could not be found.');
-    await sleep(2000);
-  }
-  throw new Error('The report is still running. Please try again shortly.');
-}
-
-const PortalReports = () => {
-  const [reports, setReports] = useState(null);
-  const [busy, setBusy] = useState('');
-  const [message, setMessage] = useState('');
-
-  const refresh = async () => {
-    try {
-      setMessage('');
-      const rows = await withTimeout(
-        invoke('portal:list', {}),
-        8000,
-        'Reports could not be loaded. Please refresh the page or ask your Jira administrator to re-save Portal Access.'
-      );
-      setReports(Array.isArray(rows) ? rows : []);
-    } catch (error) {
-      setReports([]);
-      setMessage(error?.message || 'Could not load available reports.');
-    }
-  };
-
-  useEffect(() => { refresh(); }, []);
-
-  const generate = async report => {
-    setBusy(report.id);
-    setMessage(`Generating ${report.name}…`);
-    let jobId = '';
-    try {
-      const started = await invoke('portal:run', { reportId: report.id });
-      jobId = started?.jobId || '';
-      if (!jobId) throw new Error('The report job could not be started.');
-      const status = await waitForJob(jobId);
-      setMessage(`${report.name} generated successfully. ${status.issueCount ?? 0} work items are ready.`);
-      await refresh();
-    } catch (error) {
-      setMessage(error?.message || 'Could not generate the report.');
-      if (jobId) await invoke('portal:job-cleanup', { jobId }).catch(() => {});
-    } finally {
-      setBusy('');
-    }
-  };
-
-  if (reports === null) {
-    return <Stack space="space.100">
-      <Heading size="small">Reports</Heading>
-      <Text>Loading your available reports…</Text>
-    </Stack>;
-  }
-
-  return <Stack space="space.300">
-    <Stack space="space.100">
-      <Inline space="space.100" alignBlock="center">
-        <Heading size="small">Reports</Heading>
-        <Lozenge appearance={reports.length ? 'success' : 'default'}>{reports.length} available</Lozenge>
-      </Inline>
-      <Text>View the Excel reports your administrator has made available to you.</Text>
-    </Stack>
-
-    {message ? <Text>{message}</Text> : null}
-
-    {reports.length === 0 ? <Stack space="space.100">
-      <Text>No reports are currently available to this account.</Text>
-    </Stack> : reports.map(report => <Stack key={report.id} space="space.100">
-      <Inline space="space.100" alignBlock="center">
-        <Heading size="medium">{report.name}</Heading>
-        {report.latest ? <Lozenge appearance="success">Published</Lozenge> : <Lozenge appearance="default">No published copy</Lozenge>}
-      </Inline>
-      {report.description ? <Text>{report.description}</Text> : null}
-      {report.latest ? <Text>Latest copy: {new Date(report.latest.generatedAt).toLocaleString()} · {report.latest.issueCount ?? 0} work items</Text> : null}
-      <Inline space="space.100">
-        {report.allowRun ? <Button
-          appearance="primary"
-          onClick={() => generate(report)}
-          isDisabled={busy === report.id}
-        >{busy === report.id ? 'Generating…' : 'Generate report'}</Button> : null}
-      </Inline>
-      {report.allowDownload && report.latest ? <Text>A published Excel copy is available for this report.</Text> : null}
-    </Stack>)}
-  </Stack>;
-};
+const PortalReports = () => (
+  <Stack space="space.100">
+    <Heading size="small">Reports</Heading>
+    <Text>Portal Reports module loaded successfully.</Text>
+  </Stack>
+);
 
 ForgeReconciler.render(<PortalReports />);
