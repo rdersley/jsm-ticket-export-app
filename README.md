@@ -20,7 +20,7 @@ Create, style, schedule and email professional Jira Excel reports without Jira A
 
 The app also includes a dedicated management export for support flows where crew/customer demand starts in one Jira project and agents create a separate Hardware issue when physical intervention is required.
 
-The report runs two independent base JQL queries:
+The report runs two independent base JQL queries. This means each client can have its own saved report criteria without mixing SD demand and HW workload:
 
 - **SD JQL** for Service Desk demand, for example `project = SD AND "SD Client" = RYR`
 - **HW JQL** for Hardware workload, for example `project = HW AND "SD Client" = RYR`
