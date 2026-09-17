@@ -50,8 +50,23 @@ async function saveConfig(reportId, config) {
   return value;
 }
 
-function portalIdFrom(context, payload = {}) {
-  return String(context?.extension?.portal?.id || context?.portal?.id || payload.portalId || '').trim();
+function accountIdFrom(context) {
+  const accountId = String(context?.accountId || '').trim();
+  if (!accountId) throw new Error('You must be signed in to use portal reports.');
+  return accountId;
+}
+
+function portalIdFrom(context) {
+  return String(context?.extension?.portal?.id || context?.portal?.id || '').trim();
+}
+
+async function requireAdmin() {
+  const response = await api.asUser().requestJira(route`/rest/api/3/mypermissions?permissions=ADMINISTER`, {
+    headers: { Accept: 'application/json' }
+  });
+  if (!response.ok) throw new Error('Jira administrator permission is required.');
+  const data = await response.json();
+  if (!data?.permissions?.ADMINISTER?.havePermission) throw new Error('Jira administrator permission is required.');
 }
 
 async function currentOrganizationIds() {
@@ -67,19 +82,18 @@ async function currentOrganizationIds() {
   }
 }
 
-async function isAllowed(reportId, context, payload = {}) {
+async function isAllowed(reportId, context) {
   const config = await getConfig(reportId);
   if (!config.enabled) return { allowed: false, config };
 
-  const portalId = portalIdFrom(context, payload);
+  const portalId = portalIdFrom(context);
   if (config.serviceDeskIds.length && (!portalId || !config.serviceDeskIds.includes(portalId))) {
     return { allowed: false, config };
   }
 
+  const accountId = accountIdFrom(context);
   if (config.accessMode === 'all') return { allowed: true, config };
-
-  const accountId = String(context?.accountId || '').trim();
-  if (accountId && config.userAccountIds.includes(accountId)) return { allowed: true, config };
+  if (config.userAccountIds.includes(accountId)) return { allowed: true, config };
 
   if (config.organizationIds.length) {
     const organizations = await currentOrganizationIds();
@@ -101,11 +115,12 @@ async function listAdminReports() {
   })));
 }
 
-async function listPortalReports(context, payload) {
+async function listPortalReports(context) {
+  accountIdFrom(context);
   const reports = await listReports();
   const visible = [];
   for (const report of reports) {
-    const access = await isAllowed(report.id, context, payload);
+    const access = await isAllowed(report.id, context);
     if (!access.allowed) continue;
     const latest = await kvs.get(latestKey(report.id));
     visible.push({
@@ -125,17 +140,17 @@ async function listPortalReports(context, payload) {
   return visible;
 }
 
-async function startJob(reportId, context, payload, adminPublish = false) {
+async function startJob(reportId, context, adminPublish = false) {
   const report = await getReport(reportId);
   if (!report) throw new Error('Report not found.');
+  const ownerAccountId = accountIdFrom(context);
 
   if (!adminPublish) {
-    const access = await isAllowed(reportId, context, payload);
+    const access = await isAllowed(reportId, context);
     if (!access.allowed || !access.config.allowRun) throw new Error('You do not have permission to run this report.');
   }
 
   const jobId = crypto.randomUUID();
-  const ownerAccountId = String(context?.accountId || 'admin');
   const now = new Date().toISOString();
   await kvs.set(jobKey(jobId), {
     jobId,
@@ -153,15 +168,21 @@ async function startJob(reportId, context, payload, adminPublish = false) {
 async function ownedJob(jobId, context) {
   const job = await kvs.get(jobKey(jobId));
   if (!job) return null;
-  const accountId = String(context?.accountId || '');
-  if (job.ownerAccountId && accountId && job.ownerAccountId !== accountId) {
-    throw new Error('This report job belongs to another user.');
-  }
+  const accountId = accountIdFrom(context);
+  if (job.ownerAccountId !== accountId) throw new Error('This report job belongs to another user.');
   return job;
 }
 
 async function removeChunks(prefix, id, count) {
   for (let i = 0; i < Number(count || 0); i += 1) await kvs.delete(`${prefix}${id}:${i}`);
+}
+
+async function cleanupJob(jobId, context) {
+  const job = await ownedJob(jobId, context);
+  if (!job) return { ok: true };
+  await removeChunks(JOB_CHUNK_PREFIX, jobId, job.chunkCount);
+  await kvs.delete(jobKey(jobId));
+  return { ok: true };
 }
 
 async function writeLatest(report, base64, entry) {
@@ -186,11 +207,12 @@ async function writeLatest(report, base64, entry) {
 
 export async function portalWorker(event) {
   const { jobId, reportId, ownerAccountId, adminPublish = false } = event.body || {};
-  if (!jobId || !reportId) return;
+  if (!jobId || !reportId || !ownerAccountId) return;
 
   const started = Date.now();
+  const existing = await kvs.get(jobKey(jobId));
   await kvs.set(jobKey(jobId), {
-    ...(await kvs.get(jobKey(jobId))),
+    ...existing,
     jobId,
     reportId,
     ownerAccountId,
@@ -203,8 +225,7 @@ export async function portalWorker(event) {
     const report = await getReport(reportId);
     if (!report) throw new Error('Report not found.');
     const result = await runReport(report, { delivery: false, history: true, mode: adminPublish ? 'portal-publish' : 'portal' });
-    const base64 = result.workbookBase64 || '';
-    const latest = await writeLatest(report, base64, result.entry);
+    const latest = await writeLatest(report, result.workbookBase64 || '', result.entry);
 
     for (let i = 0; i < latest.chunkCount; i += 1) {
       const chunk = await kvs.get(latestChunkKey(report.id, i));
@@ -222,7 +243,7 @@ export async function portalWorker(event) {
       issueCount: latest.issueCount,
       bytes: latest.bytes,
       durationMs: Date.now() - started,
-      createdAt: (await kvs.get(jobKey(jobId)))?.createdAt || new Date().toISOString(),
+      createdAt: existing?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
   } catch (error) {
@@ -234,20 +255,23 @@ export async function portalWorker(event) {
       state: 'failed',
       message: error?.message || 'Portal report generation failed.',
       durationMs: Date.now() - started,
+      createdAt: existing?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
   }
 }
 
-resolver.define('portal-admin:list', () => listAdminReports());
-resolver.define('portal-admin:save', ({ payload }) => saveConfig(payload.reportId, payload.config));
-resolver.define('portal-admin:publish', ({ payload, context }) => startJob(payload.reportId, context, payload, true));
+resolver.define('portal-admin:list', async () => { await requireAdmin(); return listAdminReports(); });
+resolver.define('portal-admin:save', async ({ payload }) => { await requireAdmin(); return saveConfig(payload.reportId, payload.config); });
+resolver.define('portal-admin:publish', async ({ payload, context }) => { await requireAdmin(); return startJob(payload.reportId, context, true); });
 resolver.define('portal-admin:service-desks', async () => {
+  await requireAdmin();
   const response = await api.asUser().requestJira(route`/rest/servicedeskapi/servicedesk?limit=100`, { headers: { Accept: 'application/json' } });
   if (!response.ok) throw new Error('Could not load service projects.');
   return (await response.json()).values || [];
 });
 resolver.define('portal-admin:customers', async ({ payload }) => {
+  await requireAdmin();
   const serviceDeskId = String(payload.serviceDeskId || '').trim();
   const query = String(payload.query || '').trim();
   if (!serviceDeskId) return [];
@@ -256,14 +280,16 @@ resolver.define('portal-admin:customers', async ({ payload }) => {
   return (await response.json()).values || [];
 });
 resolver.define('portal-admin:organizations', async () => {
+  await requireAdmin();
   const response = await api.asUser().requestJira(route`/rest/servicedeskapi/organization?limit=100`, { headers: { Accept: 'application/json' } });
   if (!response.ok) throw new Error('Could not load organizations.');
   return (await response.json()).values || [];
 });
-resolver.define('portal-admin:job-status', async ({ payload, context }) => (await ownedJob(payload.jobId, context)) || { state: 'missing' });
+resolver.define('portal-admin:job-status', async ({ payload, context }) => { await requireAdmin(); return (await ownedJob(payload.jobId, context)) || { state: 'missing' }; });
+resolver.define('portal-admin:job-cleanup', async ({ payload, context }) => { await requireAdmin(); return cleanupJob(payload.jobId, context); });
 
-resolver.define('portal:list', ({ payload, context }) => listPortalReports(context, payload));
-resolver.define('portal:run', ({ payload, context }) => startJob(payload.reportId, context, payload, false));
+resolver.define('portal:list', ({ context }) => listPortalReports(context));
+resolver.define('portal:run', ({ payload, context }) => startJob(payload.reportId, context, false));
 resolver.define('portal:job-status', async ({ payload, context }) => (await ownedJob(payload.jobId, context)) || { state: 'missing' });
 resolver.define('portal:job-chunk', async ({ payload, context }) => {
   const job = await ownedJob(payload.jobId, context);
@@ -272,13 +298,14 @@ resolver.define('portal:job-chunk', async ({ payload, context }) => {
   if (typeof chunk !== 'string') throw new Error('Report data is no longer available.');
   return chunk;
 });
+resolver.define('portal:job-cleanup', ({ payload, context }) => cleanupJob(payload.jobId, context));
 resolver.define('portal:latest-meta', async ({ payload, context }) => {
-  const access = await isAllowed(payload.reportId, context, payload);
+  const access = await isAllowed(payload.reportId, context);
   if (!access.allowed || !access.config.allowDownload) throw new Error('You do not have permission to download this report.');
   return await kvs.get(latestKey(payload.reportId));
 });
 resolver.define('portal:latest-chunk', async ({ payload, context }) => {
-  const access = await isAllowed(payload.reportId, context, payload);
+  const access = await isAllowed(payload.reportId, context);
   if (!access.allowed || !access.config.allowDownload) throw new Error('You do not have permission to download this report.');
   const chunk = await kvs.get(latestChunkKey(payload.reportId, Number(payload.index)));
   if (typeof chunk !== 'string') throw new Error('Published report data is no longer available.');
