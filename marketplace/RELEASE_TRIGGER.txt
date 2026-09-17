@@ -1,5 +1,5 @@
 Marketplace production release trigger — 2026-09-17
 
-Release reason: force a fresh Portal Reports module/resource instance on retailinmotion.atlassian.net after confirming the visible grey spinner is Atlassian's module-loading placeholder rather than the app's own loading state. The portal module key and native resource key have been changed to v2, and the app-side spinner has been removed so successful mounting is immediately visible as a Reports heading and loading text.
+Release reason: deploy the Weekly SD → Hardware Report export-start timeout fix to retailinmotion.atlassian.net. The Generate Excel action now queues the background export immediately and no longer performs synchronous deletion of old KVS workbook chunks before queueing. This removes the 25-second Forge resolver timeout seen when large prior exports exist.
 
-Portal access remains KVS-only during customer page load with an 8-second resolver timeout.
+Portal Reports v2 and the existing KVS-only portal access changes remain included in this release.
