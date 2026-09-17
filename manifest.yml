@@ -93,6 +93,7 @@ permissions:
     - read:filter:jira
     - read:servicedesk-request
     - read:organization:jira-service-management
+    - read:organization.user:jira-service-management
     - read:servicedesk.customer:jira-service-management
     - read:user:jira
     - storage:app
