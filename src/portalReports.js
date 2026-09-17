@@ -69,17 +69,25 @@ async function requireAdmin() {
   if (!data?.permissions?.ADMINISTER?.havePermission) throw new Error('Jira administrator permission is required.');
 }
 
-async function currentOrganizationIds() {
-  try {
-    const response = await api.asUser().requestJira(route`/rest/servicedeskapi/organization?limit=100`, {
-      headers: { Accept: 'application/json' }
-    });
-    if (!response.ok) return [];
-    const data = await response.json();
-    return (data.values || []).map(x => String(x.id));
-  } catch {
-    return [];
+async function isAccountInOrganization(accountId, organizationId) {
+  let start = 0;
+  for (let page = 0; page < 100; page += 1) {
+    try {
+      const response = await api.asApp().requestJira(
+        route`/rest/servicedeskapi/organization/${organizationId}/user?start=${start}&limit=100`,
+        { headers: { Accept: 'application/json' } }
+      );
+      if (!response.ok) return false;
+      const data = await response.json();
+      const values = data.values || [];
+      if (values.some(user => String(user.accountId || '') === accountId)) return true;
+      if (data.isLastPage === true || !values.length) return false;
+      start += values.length;
+    } catch {
+      return false;
+    }
   }
+  return false;
 }
 
 async function isAllowed(reportId, context) {
@@ -95,9 +103,8 @@ async function isAllowed(reportId, context) {
   if (config.accessMode === 'all') return { allowed: true, config };
   if (config.userAccountIds.includes(accountId)) return { allowed: true, config };
 
-  if (config.organizationIds.length) {
-    const organizations = await currentOrganizationIds();
-    if (organizations.some(id => config.organizationIds.includes(id))) return { allowed: true, config };
+  for (const organizationId of config.organizationIds) {
+    if (await isAccountInOrganization(accountId, organizationId)) return { allowed: true, config };
   }
 
   return { allowed: false, config };
