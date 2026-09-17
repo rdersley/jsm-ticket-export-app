@@ -21,18 +21,17 @@ async function removeJob(jobId, knownStatus = null) {
   await kvs.delete(statusKey(jobId));
 }
 
-async function pruneOldJobs() {
-  const index = (await kvs.get(INDEX_KEY)) || [];
-  const keep = index.slice(-MAX_JOBS + 1);
-  const remove = index.slice(0, Math.max(0, index.length - (MAX_JOBS - 1)));
-  for (const jobId of remove) await removeJob(jobId);
-  return keep;
-}
-
 async function createQueuedJob(metadata, body) {
   const jobId = crypto.randomUUID();
-  const keep = await pruneOldJobs();
+  const index = (await kvs.get(INDEX_KEY)) || [];
+  const keep = index.slice(-(MAX_JOBS - 1));
   const now = new Date().toISOString();
+
+  // Keep the resolver path deliberately lightweight. Large prior exports can
+  // contain many KVS chunks; deleting those synchronously here can exceed the
+  // Forge resolver timeout before the new job is even queued. Successful jobs
+  // are already removed by cleanupExport after download, so simply trim the
+  // active-job index here and leave physical cleanup off the request path.
   await kvs.set(statusKey(jobId), {
     jobId,
     ...metadata,
