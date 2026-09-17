@@ -1,3 +1,3 @@
 Production release trigger — 2026-09-17
 
-Release reason: fix the JSM Portal Reports endless spinner on retailinmotion.atlassian.net by using React 18.3.1 with @forge/react 12.1.1. Forge UI Kit native rendering is not compatible with React 19 in this configuration and can deploy successfully while failing at runtime with an endless spinner. Keep the existing portal resolver/v4 module wiring and all private Weekly SD → Hardware and resolution-repair functionality unchanged.
+Release reason: remove the JSM customer "Allow access" prompt from Portal Reports by splitting the customer-facing portal resolver away from the admin resolver that uses api.asUser(). The portal subheader now uses a dedicated KVS/queue-only customer resolver with no asUser Jira calls. Keep the admin Portal Reports configuration, scheduler, and all private Weekly SD → Hardware and resolution-repair functionality unchanged.
