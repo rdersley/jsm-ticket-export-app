@@ -1,3 +1,3 @@
 Marketplace production release trigger — 2026-09-17
 
-Release reason: deploy the reliable Portal Reports customer picker to retailinmotion.atlassian.net. The admin picker now pages the real customers from the selected JSM service desk and filters names/emails locally instead of relying on Atlassian's inconsistent server-side customer query matching. A Jira user-picker fallback remains for service-project permission edge cases.
+Release reason: deploy the new Weekly SD → Hardware Management Report to retailinmotion.atlassian.net. This release includes separate client-filterable SD and HW JQL inputs, weekly KPI calculations, SD→HW escalation detection, devices sent, devices received-back via Jira status history, outstanding hardware breakdown, aged open hardware tickets, and Excel workbook generation with SD/HW detail sheets.
