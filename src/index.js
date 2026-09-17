@@ -8,6 +8,7 @@ import { startExport, startHardwareWeeklyExport, startResolutionRepair, getExpor
 import { getEmailSettings, saveEmailSettings, sendTestEmail } from './services/email.js';
 import { buildHardwareWeeklyReportV2, HARDWARE_WEEKLY_DEFAULTS_V2 } from './services/hardwareWeeklyReportV2.js';
 import { RESOLUTION_REPAIR_DEFAULTS } from './services/resolutionRepair.js';
+import { getHardwareWeeklySettings, saveHardwareWeeklySettings } from './services/hardwareWeeklySettings.js';
 
 const resolver = new Resolver();
 resolver.define('report:list', () => listReports());
@@ -29,6 +30,8 @@ resolver.define('report:run:chunk', ({ payload }) => getExportChunk(payload.jobI
 resolver.define('report:run:cleanup', ({ payload }) => cleanupExport(payload.jobId));
 resolver.define('report:run', async ({ payload }) => runReport(await getReport(payload.id), { delivery: false }));
 resolver.define('report:hardware-weekly:defaults', () => structuredClone(HARDWARE_WEEKLY_DEFAULTS_V2));
+resolver.define('report:hardware-weekly:settings:get', () => getHardwareWeeklySettings());
+resolver.define('report:hardware-weekly:settings:save', ({ payload }) => saveHardwareWeeklySettings(payload || {}));
 resolver.define('report:hardware-weekly:start', ({ payload }) => startHardwareWeeklyExport(payload || {}));
 resolver.define('report:hardware-weekly:run', ({ payload }) => buildHardwareWeeklyReportV2(payload || {}));
 resolver.define('report:resolution-repair:defaults', () => structuredClone(RESOLUTION_REPAIR_DEFAULTS));
