@@ -27,6 +27,7 @@ modules:
         function: resolver
       title: Weekly SD → Hardware Report
       layout: blank
+      useAsGetStarted: true
 
   jira:projectPage:
     - key: nuvriqo-excel-report-manager-project
