@@ -32,6 +32,7 @@ function normalizeConfig(reportId, config = {}) {
     accessMode: config.accessMode === 'selected' ? 'selected' : 'all',
     userAccountIds: cleanIds(config.userAccountIds),
     organizationIds: cleanIds(config.organizationIds),
+    organizationAccountIds: cleanIds(config.organizationAccountIds),
     allowRun: config.allowRun !== false,
     allowDownload: config.allowDownload !== false,
     updatedAt: new Date().toISOString()
@@ -42,10 +43,39 @@ async function getConfig(reportId) {
   return (await kvs.get(configKey(reportId))) || normalizeConfig(reportId, { enabled: false });
 }
 
+async function expandOrganizationAccounts(organizationIds) {
+  const accountIds = new Set();
+  for (const organizationId of cleanIds(organizationIds)) {
+    let start = 0;
+    for (let page = 0; page < 100; page += 1) {
+      const response = await api.asUser().requestJira(
+        route`/rest/servicedeskapi/organization/${organizationId}/user?start=${start}&limit=100`,
+        { headers: { Accept: 'application/json' } }
+      );
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        throw new Error(`Could not resolve members of selected organisation ${organizationId} (${response.status})${detail ? `: ${detail.slice(0, 160)}` : ''}`);
+      }
+      const data = await response.json();
+      const values = data.values || [];
+      for (const user of values) {
+        if (user?.accountId) accountIds.add(String(user.accountId));
+      }
+      if (data.isLastPage === true || values.length === 0) break;
+      start += values.length;
+    }
+  }
+  return [...accountIds];
+}
+
 async function saveConfig(reportId, config) {
   const report = await getReport(reportId);
   if (!report) throw new Error('Report not found.');
   const value = normalizeConfig(reportId, config);
+  value.organizationAccountIds = value.accessMode === 'selected' && value.organizationIds.length
+    ? await expandOrganizationAccounts(value.organizationIds)
+    : [];
+  value.updatedAt = new Date().toISOString();
   await kvs.set(configKey(reportId), value);
   return value;
 }
@@ -73,40 +103,19 @@ async function requireAdmin() {
   if (!data?.permissions?.ADMINISTER?.havePermission) throw new Error('Jira administrator permission is required.');
 }
 
-async function organizationIdsForAccount(accountId) {
-  try {
-    const response = await api.asApp().requestJira(
-      route`/rest/servicedeskapi/organization?accountId=${accountId}&limit=100`,
-      { headers: { Accept: 'application/json' } }
-    );
-    if (!response.ok) return [];
-    const data = await response.json();
-    return cleanIds((data.values || []).map(org => org.id));
-  } catch {
-    return [];
-  }
-}
-
-async function isAllowed(reportId, context, cachedOrgIds = null) {
+async function isAllowed(reportId, context) {
   const config = await getConfig(reportId);
   if (!config.enabled) return { allowed: false, config };
 
   const portalId = portalIdFrom(context);
-  if (config.serviceDeskIds.length && (!portalId || !config.serviceDeskIds.includes(portalId))) {
+  if (config.serviceDeskIds.length && portalId && !config.serviceDeskIds.includes(portalId)) {
     return { allowed: false, config };
   }
 
   const accountId = accountIdFrom(context);
   if (config.accessMode === 'all') return { allowed: true, config };
   if (config.userAccountIds.includes(accountId)) return { allowed: true, config };
-
-  if (config.organizationIds.length) {
-    const accountOrgIds = cachedOrgIds || await organizationIdsForAccount(accountId);
-    if (config.organizationIds.some(id => accountOrgIds.includes(String(id)))) {
-      return { allowed: true, config };
-    }
-  }
-
+  if (config.organizationAccountIds.includes(accountId)) return { allowed: true, config };
   return { allowed: false, config };
 }
 
@@ -123,16 +132,11 @@ async function listAdminReports() {
 }
 
 async function listPortalReports(context) {
-  const accountId = accountIdFrom(context);
+  accountIdFrom(context);
   const reports = await listReports();
-  let accountOrgIds = null;
   const visible = [];
   for (const report of reports) {
-    const cfg = await getConfig(report.id);
-    if (cfg.accessMode === 'selected' && cfg.organizationIds.length && !cfg.userAccountIds.includes(accountId) && accountOrgIds === null) {
-      accountOrgIds = await organizationIdsForAccount(accountId);
-    }
-    const access = await isAllowed(report.id, context, accountOrgIds || []);
+    const access = await isAllowed(report.id, context);
     if (!access.allowed) continue;
     const latest = await kvs.get(latestKey(report.id));
     visible.push({
@@ -289,9 +293,6 @@ resolver.define('portal-admin:customers', async ({ payload }) => {
   const query = String(payload.query || '').trim().toLowerCase();
   if (!serviceDeskId) return [];
 
-  // Load portal customers from the selected service desk without relying on
-  // Atlassian's server-side query matching. That query can omit portal-only
-  // users on some sites. We page the real customer list and filter locally.
   const customers = [];
   let start = 0;
   let jsmStatus = 200;
@@ -316,15 +317,12 @@ resolver.define('portal-admin:customers', async ({ payload }) => {
       emailAddress: user.emailAddress || '',
       active: user.active !== false
     })).filter(user => user.accountId);
-
     const filtered = query
       ? normalized.filter(user => `${user.displayName} ${user.emailAddress} ${user.accountId}`.toLowerCase().includes(query))
       : normalized;
     return filtered.slice(0, 50);
   }
 
-  // Fallback for admins whose JSM project permissions block the customer list.
-  // Use Jira's picker in the same signed-in admin context.
   if (!query) return [];
   const pickerResponse = await api.asUser().requestJira(
     route`/rest/api/3/user/picker?query=${query}&maxResults=50`,
