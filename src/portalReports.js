@@ -286,26 +286,53 @@ resolver.define('portal-admin:service-desks', async () => {
 resolver.define('portal-admin:customers', async ({ payload }) => {
   await requireAdmin();
   const serviceDeskId = String(payload.serviceDeskId || '').trim();
-  const query = String(payload.query || '').trim();
-  if (!serviceDeskId || !query) return [];
+  const query = String(payload.query || '').trim().toLowerCase();
+  if (!serviceDeskId) return [];
 
-  const jsmResponse = await api.asUser().requestJira(
-    route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?query=${query}&limit=50`,
-    { headers: { Accept: 'application/json', 'X-ExperimentalApi': 'opt-in' } }
-  );
-  if (jsmResponse.ok) return (await jsmResponse.json()).values || [];
+  // Load portal customers from the selected service desk without relying on
+  // Atlassian's server-side query matching. That query can omit portal-only
+  // users on some sites. We page the real customer list and filter locally.
+  const customers = [];
+  let start = 0;
+  let jsmStatus = 200;
+  for (let page = 0; page < 20; page += 1) {
+    const response = await api.asUser().requestJira(
+      route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?start=${start}&limit=100`,
+      { headers: { Accept: 'application/json', 'X-ExperimentalApi': 'opt-in' } }
+    );
+    jsmStatus = response.status;
+    if (!response.ok) break;
+    const data = await response.json();
+    const values = data.values || [];
+    customers.push(...values);
+    if (data.isLastPage === true || values.length === 0) break;
+    start += values.length;
+  }
 
-  // Some admins can configure Jira globally but do not have the service-project
-  // permission needed by the experimental JSM customer endpoint. Fall back to
-  // Jira's user picker in that case, still in the signed-in admin context.
+  if (customers.length) {
+    const normalized = customers.map(user => ({
+      accountId: user.accountId,
+      displayName: user.displayName || user.name || user.emailAddress || user.accountId,
+      emailAddress: user.emailAddress || '',
+      active: user.active !== false
+    })).filter(user => user.accountId);
+
+    const filtered = query
+      ? normalized.filter(user => `${user.displayName} ${user.emailAddress} ${user.accountId}`.toLowerCase().includes(query))
+      : normalized;
+    return filtered.slice(0, 50);
+  }
+
+  // Fallback for admins whose JSM project permissions block the customer list.
+  // Use Jira's picker in the same signed-in admin context.
+  if (!query) return [];
   const pickerResponse = await api.asUser().requestJira(
     route`/rest/api/3/user/picker?query=${query}&maxResults=50`,
     { headers: { Accept: 'application/json' } }
   );
   if (!pickerResponse.ok) {
-    const jsmDetail = await jsmResponse.text().catch(() => '');
-    const pickerDetail = await pickerResponse.text().catch(() => '');
-    throw new Error(`Could not load portal customers (${jsmResponse.status}/${pickerResponse.status})${pickerDetail || jsmDetail ? `: ${(pickerDetail || jsmDetail).slice(0, 180)}` : ''}`);
+    const detail = await pickerResponse.text().catch(() => '');
+    throw new Error(`Could not load portal customers (${jsmStatus}/${pickerResponse.status})${detail ? `: ${detail.slice(0, 180)}` : ''}`);
   }
   const picker = await pickerResponse.json();
   return (picker.users || []).map(user => ({
