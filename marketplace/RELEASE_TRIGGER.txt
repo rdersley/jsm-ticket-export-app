@@ -1,3 +1,3 @@
 Marketplace production release trigger — 2026-09-17
 
-Release reason: retry deployment of the Weekly SD → Hardware Management Report to retailinmotion.atlassian.net after correcting the Forge manifest so the app defines only one jira:globalPage module. The weekly report is exposed as a project page while retaining separate client-filterable SD and HW JQL inputs, KPI calculations, status-history received-back logic and Excel export generation.
+Release reason: deploy the Portal Reports reliability fix to retailinmotion.atlassian.net. Customer-side report listing and access checks are now KVS-only with no Jira/JSM REST calls during portal page load. Selected organisation memberships are resolved and cached when the Jira admin saves Portal Access. The portal UI also has an 8-second load timeout so it can never remain on an indefinite spinner.
