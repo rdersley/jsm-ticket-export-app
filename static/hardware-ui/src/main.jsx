@@ -37,6 +37,7 @@ const lastCompletedWeek = () => {
 };
 
 const parseList = value => String(value || '').split(',').map(x => x.trim()).filter(Boolean);
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function App() {
   const defaultDates = useMemo(lastCompletedWeek, []);
@@ -77,8 +78,9 @@ function App() {
 
   const generate = async () => {
     setBusy(true);
-    setMessage('Running SD and HW Jira queries and building the workbook…');
+    setMessage('Queuing the SD and HW report…');
     setLastResult(null);
+    let jobId = null;
     try {
       const payload = {
         ...form,
@@ -87,12 +89,37 @@ function App() {
         awaitingDispatchStatuses: parseList(form.awaitingDispatchStatuses),
         awaitingReturnStatuses: parseList(form.awaitingReturnStatuses)
       };
-      const result = await invoke('report:hardware-weekly:run', payload);
-      downloadBase64(result.workbookBase64, result.filename);
-      setLastResult(result);
-      setMessage(`Report created. SD rows: ${result.counts?.sdRows ?? 0}; HW rows: ${result.counts?.hwRows ?? 0}.`);
+
+      const started = await invoke('report:hardware-weekly:start', payload);
+      jobId = started?.jobId;
+      if (!jobId) throw new Error('The report could not be queued.');
+      setMessage('Running SD and HW Jira queries in the background. You can keep this page open while it finishes…');
+
+      for (let attempt = 0; attempt < 450; attempt++) {
+        const status = await invoke('report:run:status', { jobId });
+        if (status?.state === 'ready') {
+          let base64 = '';
+          for (let i = 0; i < Number(status.chunkCount || 0); i++) {
+            base64 += await invoke('report:run:chunk', { jobId, index: i });
+          }
+          downloadBase64(base64, status.filename || 'weekly-sd-hardware-report.xlsx');
+          setLastResult({
+            summary: status.summary || {},
+            counts: status.counts || {},
+            warningCount: Number(status.warningCount || 0)
+          });
+          setMessage(`Report created in ${status.durationMs ? Math.round(status.durationMs / 1000) + 's' : 'the background'}. SD rows: ${status.counts?.sdRows ?? 0}; HW rows: ${status.counts?.hwRows ?? 0}.`);
+          await invoke('report:run:cleanup', { jobId }).catch(() => {});
+          return;
+        }
+        if (status?.state === 'failed') throw new Error(status.message || 'Report generation failed.');
+        if (status?.state === 'missing') throw new Error('The queued report could not be found.');
+        await wait(2000);
+      }
+      throw new Error('The report is taking longer than expected. Please try again shortly.');
     } catch (error) {
       setMessage(error?.message || 'The report could not be generated.');
+      if (jobId) await invoke('report:run:cleanup', { jobId }).catch(() => {});
     } finally {
       setBusy(false);
     }
@@ -166,7 +193,7 @@ function App() {
         <div><strong>{lastResult.summary?.devicesReceived ?? 0}</strong><span>Received back</span></div>
         <div><strong>{lastResult.summary?.outstandingDevices ?? 0}</strong><span>Outstanding</span></div>
       </div>
-      {lastResult.warnings?.length > 0 && <div className="warning">{lastResult.warnings.length} Jira changelog item(s) could not be read. The workbook includes the warning details.</div>}
+      {lastResult.warningCount > 0 && <div className="warning">{lastResult.warningCount} Jira changelog item(s) could not be read. The workbook includes the warning details.</div>}
     </section>}
   </main>;
 }
