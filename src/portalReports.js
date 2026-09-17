@@ -283,26 +283,18 @@ resolver.define('portal-admin:customers', async ({ payload }) => {
   const query = String(payload.query || '').trim();
   if (!serviceDeskId) return [];
 
-  const jsmResponse = await api.asApp().requestJira(
+  // This is an admin-only configuration action. Use the signed-in Jira admin's
+  // JSM permissions rather than app context. This endpoint is permission-aware
+  // and is the canonical JSM source for portal customers on a service desk.
+  const response = await api.asUser().requestJira(
     route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?query=${query}&limit=50`,
     { headers: { Accept: 'application/json' } }
   );
-  if (jsmResponse.ok) return (await jsmResponse.json()).values || [];
-
-  const jiraResponse = await api.asApp().requestJira(
-    route`/rest/api/3/user/search?query=${query}&maxResults=50`,
-    { headers: { Accept: 'application/json' } }
-  );
-  if (!jiraResponse.ok) {
-    const detail = await jiraResponse.text().catch(() => '');
-    throw new Error(`Could not load portal customers (${jsmResponse.status}/${jiraResponse.status})${detail ? `: ${detail.slice(0, 180)}` : ''}`);
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`Could not load portal customers (${response.status})${detail ? `: ${detail.slice(0, 180)}` : ''}`);
   }
-  return (await jiraResponse.json()).map(user => ({
-    accountId: user.accountId,
-    displayName: user.displayName || user.emailAddress || user.accountId,
-    emailAddress: user.emailAddress || '',
-    active: user.active !== false
-  })).filter(user => user.accountId);
+  return (await response.json()).values || [];
 });
 resolver.define('portal-admin:organizations', async () => {
   await requireAdmin();
