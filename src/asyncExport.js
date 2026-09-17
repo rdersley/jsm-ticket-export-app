@@ -2,6 +2,7 @@ import { Queue } from '@forge/events';
 import { kvs } from '@forge/kvs';
 import { getReport } from './services/reportStore.js';
 import { runReport } from './services/runner.js';
+import { buildHardwareWeeklyReportV2 } from './services/hardwareWeeklyReportV2.js';
 
 const queue = new Queue({ key: 'report-export-queue' });
 const STATUS_PREFIX = 'export:status:';
@@ -28,23 +29,33 @@ async function pruneOldJobs() {
   return keep;
 }
 
-export async function startExport(reportId) {
-  const report = await getReport(reportId);
-  if (!report) throw new Error('Report not found.');
-
+async function createQueuedJob(metadata, body) {
   const jobId = crypto.randomUUID();
   const keep = await pruneOldJobs();
   const now = new Date().toISOString();
   await kvs.set(statusKey(jobId), {
     jobId,
-    reportId,
+    ...metadata,
     state: 'queued',
     createdAt: now,
     updatedAt: now
   });
   await kvs.set(INDEX_KEY, [...keep, jobId]);
-  await queue.push({ body: { jobId, reportId } });
+  await queue.push({ body: { jobId, ...body } });
   return { jobId };
+}
+
+export async function startExport(reportId) {
+  const report = await getReport(reportId);
+  if (!report) throw new Error('Report not found.');
+  return createQueuedJob({ reportId, kind: 'saved-report' }, { reportId, kind: 'saved-report' });
+}
+
+export async function startHardwareWeeklyExport(config = {}) {
+  return createQueuedJob(
+    { kind: 'hardware-weekly' },
+    { kind: 'hardware-weekly', hardwareConfig: config }
+  );
 }
 
 export async function getExportStatus(jobId) {
@@ -67,6 +78,33 @@ export async function cleanupExport(jobId) {
   const index = (await kvs.get(INDEX_KEY)) || [];
   await kvs.set(INDEX_KEY, index.filter(id => id !== jobId));
   return { ok: true };
+}
+
+async function storeWorkbook(jobId, baseStatus, result, started, fallbackFilename) {
+  const base64 = result?.workbookBase64 || '';
+  const chunks = [];
+  for (let offset = 0; offset < base64.length; offset += CHUNK_SIZE) {
+    chunks.push(base64.slice(offset, offset + CHUNK_SIZE));
+  }
+  for (let i = 0; i < chunks.length; i += 1) {
+    await kvs.set(chunkKey(jobId, i), chunks[i]);
+  }
+
+  await kvs.set(statusKey(jobId), {
+    ...baseStatus,
+    jobId,
+    state: 'ready',
+    filename: result?.filename || fallbackFilename,
+    chunkCount: chunks.length,
+    issueCount: result?.entry?.issueCount ?? null,
+    bytes: result?.entry?.bytes ?? null,
+    summary: result?.summary || null,
+    counts: result?.counts || null,
+    warningCount: Array.isArray(result?.warnings) ? result.warnings.length : 0,
+    durationMs: Date.now() - started,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  });
 }
 
 async function runScheduledDelivery(reportId, occurrence) {
@@ -95,10 +133,10 @@ async function runScheduledDelivery(reportId, occurrence) {
 }
 
 export async function handler(event) {
-  const { jobId, reportId, scheduled = false, occurrence = null } = event.body || {};
-  if (!reportId) return;
+  const { jobId, reportId, scheduled = false, occurrence = null, kind = 'saved-report', hardwareConfig = null } = event.body || {};
 
   if (scheduled) {
+    if (!reportId) return;
     await runScheduledDelivery(reportId, occurrence);
     return;
   }
@@ -106,44 +144,29 @@ export async function handler(event) {
   if (!jobId) return;
 
   const started = Date.now();
+  const baseStatus = { jobId, reportId: reportId || null, kind };
   await kvs.set(statusKey(jobId), {
-    jobId,
-    reportId,
+    ...baseStatus,
     state: 'running',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   });
 
   try {
+    if (kind === 'hardware-weekly') {
+      const result = await buildHardwareWeeklyReportV2(hardwareConfig || {});
+      await storeWorkbook(jobId, baseStatus, result, started, 'weekly-sd-hardware-report.xlsx');
+      return;
+    }
+
+    if (!reportId) throw new Error('Missing report id.');
     const report = await getReport(reportId);
     if (!report) throw new Error('Report not found.');
-
     const result = await runReport(report, { delivery: false, history: true, mode: 'manual' });
-    const base64 = result.workbookBase64 || '';
-    const chunks = [];
-    for (let offset = 0; offset < base64.length; offset += CHUNK_SIZE) {
-      chunks.push(base64.slice(offset, offset + CHUNK_SIZE));
-    }
-    for (let i = 0; i < chunks.length; i += 1) {
-      await kvs.set(chunkKey(jobId, i), chunks[i]);
-    }
-
-    await kvs.set(statusKey(jobId), {
-      jobId,
-      reportId,
-      state: 'ready',
-      filename: `${report.name || 'jira-report'}.xlsx`,
-      chunkCount: chunks.length,
-      issueCount: result.entry?.issueCount ?? null,
-      bytes: result.entry?.bytes ?? null,
-      durationMs: Date.now() - started,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
+    await storeWorkbook(jobId, baseStatus, result, started, `${report.name || 'jira-report'}.xlsx`);
   } catch (error) {
     await kvs.set(statusKey(jobId), {
-      jobId,
-      reportId,
+      ...baseStatus,
       state: 'failed',
       message: error?.message || 'Report generation failed.',
       durationMs: Date.now() - started,
