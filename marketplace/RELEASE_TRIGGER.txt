@@ -1,3 +1,3 @@
 Production release trigger — 2026-09-17
 
-Release reason: remove the JSM customer "Allow access" prompt from Portal Reports by splitting the customer-facing portal resolver away from the admin resolver that uses api.asUser(). The portal subheader now uses a dedicated KVS/queue-only customer resolver with no asUser Jira calls. Keep the admin Portal Reports configuration, scheduler, and all private Weekly SD → Hardware and resolution-repair functionality unchanged.
+Release reason: retry consent-free Portal Reports release after fixing Forge's 23-character function-key limit. Customer portal now uses the short `portal-customer` resolver key, still backed only by KVS/queues and no api.asUser Jira calls. Keep admin Portal Reports, scheduler, and all private Weekly SD → Hardware and resolution-repair functionality unchanged.
