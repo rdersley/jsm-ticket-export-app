@@ -6,12 +6,6 @@ modules:
         function: resolver
       title: Excel Report Manager
       layout: blank
-    - key: nuvriqo-weekly-hardware-report
-      resource: hardware-ui
-      resolver:
-        function: resolver
-      title: Weekly SD → Hardware Report
-      layout: blank
 
   jira:adminPage:
     - key: nuvriqo-excel-report-manager-admin
@@ -34,6 +28,12 @@ modules:
       resolver:
         function: resolver
       title: Excel Report Manager
+      layout: blank
+    - key: nuvriqo-weekly-hardware-report
+      resource: hardware-ui
+      resolver:
+        function: resolver
+      title: Weekly SD → Hardware Report
       layout: blank
 
   jira:issueNavigatorAction:
