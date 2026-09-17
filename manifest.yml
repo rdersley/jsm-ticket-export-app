@@ -14,6 +14,13 @@ modules:
         function: resolver
       title: Excel Report Manager
       layout: blank
+    - key: nuvriqo-excel-portal-reports-admin
+      resource: portal-admin-ui
+      resolver:
+        function: portal-resolver
+      title: Portal Reports
+      layout: blank
+      useAsConfig: true
 
   jira:projectPage:
     - key: nuvriqo-excel-report-manager-project
@@ -21,12 +28,6 @@ modules:
       resolver:
         function: resolver
       title: Excel Report Manager
-      layout: blank
-    - key: nuvriqo-excel-portal-reports-admin
-      resource: portal-admin-ui
-      resolver:
-        function: portal-resolver
-      title: Portal Reports
       layout: blank
 
   jira:issueNavigatorAction:
