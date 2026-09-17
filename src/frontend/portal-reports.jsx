@@ -11,6 +11,10 @@ import ForgeReconciler, {
 import { invoke } from '@forge/bridge';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const withTimeout = (promise, ms, message) => Promise.race([
+  promise,
+  new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms))
+]);
 
 async function waitForJob(jobId) {
   for (let attempt = 0; attempt < 300; attempt += 1) {
@@ -31,7 +35,11 @@ const PortalReports = () => {
   const refresh = async () => {
     try {
       setMessage('');
-      const rows = await invoke('portal:list', {});
+      const rows = await withTimeout(
+        invoke('portal:list', {}),
+        8000,
+        'Reports could not be loaded. Please refresh the page or ask your Jira administrator to re-save Portal Access.'
+      );
       setReports(Array.isArray(rows) ? rows : []);
     } catch (error) {
       setReports([]);
@@ -96,7 +104,7 @@ const PortalReports = () => {
           isDisabled={busy === report.id}
         >{busy === report.id ? 'Generating…' : 'Generate report'}</Button> : null}
       </Inline>
-      {report.allowDownload && report.latest ? <Text>Download support is temporarily hidden while the portal modal is being stabilised. The published copy remains stored securely.</Text> : null}
+      {report.allowDownload && report.latest ? <Text>A published Excel copy is available for this report.</Text> : null}
     </Stack>)}
   </Stack>;
 };
