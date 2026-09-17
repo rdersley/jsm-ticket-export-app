@@ -48,10 +48,10 @@ jobs:
         run: forge lint
 
       - name: Deploy to Forge production
-        run: forge deploy -e production
+        run: forge deploy -e production --approve MAJOR_VERSION_RULE --non-interactive
 
       - name: Upgrade production installation on work Jira site
         shell: bash
         run: |
-          forge install --upgrade --non-interactive --site retailinmotion.atlassian.net --product jira -e production || \
-          forge install --non-interactive --site retailinmotion.atlassian.net --product jira -e production
+          forge install --upgrade --confirm-scopes --non-interactive --site retailinmotion.atlassian.net --product jira -e production || \
+          forge install --confirm-scopes --non-interactive --site retailinmotion.atlassian.net --product jira -e production
