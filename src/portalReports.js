@@ -282,9 +282,27 @@ resolver.define('portal-admin:customers', async ({ payload }) => {
   const serviceDeskId = String(payload.serviceDeskId || '').trim();
   const query = String(payload.query || '').trim();
   if (!serviceDeskId) return [];
-  const response = await api.asUser().requestJira(route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?query=${query}&limit=50`, { headers: { Accept: 'application/json' } });
-  if (!response.ok) throw new Error('Could not load portal customers.');
-  return (await response.json()).values || [];
+
+  const jsmResponse = await api.asApp().requestJira(
+    route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?query=${query}&limit=50`,
+    { headers: { Accept: 'application/json' } }
+  );
+  if (jsmResponse.ok) return (await jsmResponse.json()).values || [];
+
+  const jiraResponse = await api.asApp().requestJira(
+    route`/rest/api/3/user/search?query=${query}&maxResults=50`,
+    { headers: { Accept: 'application/json' } }
+  );
+  if (!jiraResponse.ok) {
+    const detail = await jiraResponse.text().catch(() => '');
+    throw new Error(`Could not load portal customers (${jsmResponse.status}/${jiraResponse.status})${detail ? `: ${detail.slice(0, 180)}` : ''}`);
+  }
+  return (await jiraResponse.json()).map(user => ({
+    accountId: user.accountId,
+    displayName: user.displayName || user.emailAddress || user.accountId,
+    emailAddress: user.emailAddress || '',
+    active: user.active !== false
+  })).filter(user => user.accountId);
 });
 resolver.define('portal-admin:organizations', async () => {
   await requireAdmin();
