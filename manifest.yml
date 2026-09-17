@@ -47,10 +47,10 @@ modules:
       viewportSize: large
 
   jiraServiceManagement:portalSubheader:
-    - key: nuvriqo-excel-portal-reports-v4
-      resource: portal-native-ui-v4
+    - key: nuvriqo-excel-portal-reports-v5
+      resource: portal-native-ui-v5
       resolver:
-        function: portal-resolver
+        function: portal-customer-resolver
       render: native
       unlicensedAccess:
         - customer
@@ -79,6 +79,8 @@ modules:
       timeoutSeconds: 900
     - key: portal-resolver
       handler: portalReports.handler
+    - key: portal-customer-resolver
+      handler: portalCustomer.handler
     - key: portal-worker
       handler: portalReports.portalWorker
       timeoutSeconds: 900
@@ -90,7 +92,7 @@ resources:
     path: static/hardware-ui/dist
   - key: navigator-ui
     path: static/navigator-ui/dist
-  - key: portal-native-ui-v4
+  - key: portal-native-ui-v5
     path: src/frontend/portal-reports.jsx
   - key: portal-admin-ui
     path: static/portal-admin-ui/dist
