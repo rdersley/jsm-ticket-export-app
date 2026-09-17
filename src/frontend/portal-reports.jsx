@@ -4,7 +4,6 @@ import ForgeReconciler, {
   Heading,
   Inline,
   Lozenge,
-  Spinner,
   Stack,
   Text
 } from '@forge/react';
@@ -69,9 +68,8 @@ const PortalReports = () => {
   };
 
   if (reports === null) {
-    return <Stack space="space.200">
-      <Heading size="large">Reports</Heading>
-      <Spinner />
+    return <Stack space="space.100">
+      <Heading size="small">Reports</Heading>
       <Text>Loading your available reports…</Text>
     </Stack>;
   }
@@ -79,7 +77,7 @@ const PortalReports = () => {
   return <Stack space="space.300">
     <Stack space="space.100">
       <Inline space="space.100" alignBlock="center">
-        <Heading size="large">Reports</Heading>
+        <Heading size="small">Reports</Heading>
         <Lozenge appearance={reports.length ? 'success' : 'default'}>{reports.length} available</Lozenge>
       </Inline>
       <Text>View the Excel reports your administrator has made available to you.</Text>
@@ -88,8 +86,7 @@ const PortalReports = () => {
     {message ? <Text>{message}</Text> : null}
 
     {reports.length === 0 ? <Stack space="space.100">
-      <Heading size="medium">No reports available</Heading>
-      <Text>Your account does not currently have access to any published reports.</Text>
+      <Text>No reports are currently available to this account.</Text>
     </Stack> : reports.map(report => <Stack key={report.id} space="space.100">
       <Inline space="space.100" alignBlock="center">
         <Heading size="medium">{report.name}</Heading>
