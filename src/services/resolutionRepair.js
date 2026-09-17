@@ -83,7 +83,7 @@ export async function buildResolutionRepairCsv(options = {}) {
   const resolutionName = String(options.resolutionName || 'Done').trim() || 'Done';
   const maxIssues = Math.min(10000, Math.max(1, Number(options.maxIssues) || 10000));
 
-  const result = await searchIssues(jql, ['status', 'resolution', 'resolutiondate', 'created'], maxIssues);
+  const result = await searchIssues(jql, ['summary', 'status', 'resolution', 'resolutiondate', 'created'], maxIssues);
   const issues = result.issues || [];
 
   const derived = await concurrent(issues, 8, async issue => {
@@ -100,12 +100,13 @@ export async function buildResolutionRepairCsv(options = {}) {
   for (let i = 0; i < derived.length; i += 1) {
     const item = derived[i];
     const issue = issues[i];
+    const summary = issue?.fields?.summary || issue?.key || 'Resolution date repair';
     if (item?.error) {
       reviewCount += 1;
       noDateCount += 1;
       const note = `Could not read changelog: ${item.error.message || item.error}`;
       warnings.push(`${issue?.key || 'Unknown issue'}: ${note}`);
-      rows.push([issue?.key || '', '', '', issue?.fields?.status?.name || '', '', 'YES', note]);
+      rows.push([issue?.key || '', summary, '', '', issue?.fields?.status?.name || '', '', 'YES', note]);
       continue;
     }
 
@@ -116,6 +117,7 @@ export async function buildResolutionRepairCsv(options = {}) {
 
     rows.push([
       item.issue.key,
+      item.issue.fields?.summary || item.issue.key,
       resolved ? resolutionName : '',
       resolved,
       item.issue.fields?.status?.name || '',
@@ -125,7 +127,7 @@ export async function buildResolutionRepairCsv(options = {}) {
     ]);
   }
 
-  const header = ['Issue Key', 'Resolution', 'Resolved', 'Current Status', 'Derived From', 'Needs Review', 'Notes'];
+  const header = ['Issue Key', 'Summary', 'Resolution', 'Resolved', 'Current Status', 'Derived From', 'Needs Review', 'Notes'];
   const csv = [header, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n');
   const base64 = Buffer.from(`\uFEFF${csv}`, 'utf8').toString('base64');
   const today = new Date().toISOString().slice(0, 10);
