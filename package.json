@@ -5,10 +5,9 @@
   "description": "Visual, scheduled Excel reporting for Jira without Jira Automation rules.",
   "main": "src/index.js",
   "scripts": {
-    "build": "npm run build:admin && npm run build:navigator && npm run build:portal && npm run build:portal-admin",
+    "build": "npm run build:admin && npm run build:navigator && npm run build:portal-admin",
     "build:admin": "vite build --config static/admin-ui/vite.config.js",
     "build:navigator": "vite build --config static/navigator-ui/vite.config.js",
-    "build:portal": "vite build --config static/portal-ui/vite.config.js",
     "build:portal-admin": "vite build --config static/portal-admin-ui/vite.config.js",
     "test": "node --experimental-default-type=module --test tests/*.test.js",
     "lint": "forge lint",
@@ -19,6 +18,7 @@
     "@forge/bridge": "6.3.1",
     "@forge/events": "^2.0.0",
     "@forge/kvs": "^1.0.0",
+    "@forge/react": "12.1.1",
     "@forge/resolver": "^1.7.0",
     "exceljs": "^4.4.0"
   },
