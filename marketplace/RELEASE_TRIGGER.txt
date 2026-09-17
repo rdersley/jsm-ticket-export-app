@@ -1,5 +1,5 @@
 Marketplace production release trigger — 2026-09-17
 
-Release reason: deploy a static native Portal Reports isolation build to retailinmotion.atlassian.net. The portal module now contains no bridge calls, no resolver invokes, no async loading and no customer access logic. It only renders a Reports heading and a module-loaded confirmation. This isolates whether Atlassian can mount the native portalSubheader resource at all.
+Release reason: deploy a resolver-free static native Portal Reports isolation build to retailinmotion.atlassian.net. The portalSubheader now uses a fresh module key and resource key and has no resolver binding at all. The frontend remains static and only renders a Reports heading plus a module-loaded confirmation.
 
-If this static build still shows only Atlassian's grey loading spinner, the fault is at the portal module/resource mounting layer rather than Portal Reports backend logic.
+This test isolates whether the resolver binding itself is preventing the native portal module from mounting.
