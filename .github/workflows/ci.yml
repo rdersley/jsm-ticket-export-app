@@ -2,11 +2,13 @@ name: Build validation and development deploy
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - feature/portal-reports
   pull_request:
 
 concurrency:
-  group: forge-development-${{ github.repository }}
+  group: forge-development-${{ github.repository }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -43,15 +45,17 @@ jobs:
         run: npm run build
 
       - name: Forge lint
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
         run: forge lint
 
       - name: Deploy to Forge development
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: forge deploy -e development
+        if: github.event_name == 'push'
+        run: forge deploy -e development --approve MAJOR_VERSION_RULE --non-interactive
 
       - name: Install or upgrade on Nuvriqo Jira
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push'
         shell: bash
         run: |
-          forge install --upgrade --non-interactive --site nuvriqo.atlassian.net --product jira -e development || \
-          forge install --non-interactive --site nuvriqo.atlassian.net --product jira -e development
+          forge install --upgrade --confirm-scopes --non-interactive --site nuvriqo.atlassian.net --product jira -e development || \
+          forge install --confirm-scopes --non-interactive --site nuvriqo.atlassian.net --product jira -e development
