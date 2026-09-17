@@ -1,3 +1,3 @@
 Marketplace production release trigger — 2026-09-17
 
-Release reason: deploy Portal Reports fixes to retailinmotion.atlassian.net. This release adds the required JSM experimental API opt-in header for portal customer search, improves portal ID detection from the user-menu context, and stabilises the native Reports modal by removing the preview FileCard from the initial render while keeping secure report generation and storage intact.
+Release reason: deploy the Portal Reports reliability fixes to retailinmotion.atlassian.net. This release replaces slow per-organization member paging with a single account organization lookup so the Reports modal can load quickly, and adds a signed-in-admin Jira user-picker fallback when the experimental JSM customer search is unavailable.
