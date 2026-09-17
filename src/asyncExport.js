@@ -3,6 +3,7 @@ import { kvs } from '@forge/kvs';
 import { getReport } from './services/reportStore.js';
 import { runReport } from './services/runner.js';
 import { buildHardwareWeeklyReportV2 } from './services/hardwareWeeklyReportV2.js';
+import { buildResolutionRepairCsv } from './services/resolutionRepair.js';
 
 const queue = new Queue({ key: 'report-export-queue' });
 const STATUS_PREFIX = 'export:status:';
@@ -54,6 +55,13 @@ export async function startHardwareWeeklyExport(config = {}) {
   return createQueuedJob(
     { kind: 'hardware-weekly' },
     { kind: 'hardware-weekly', hardwareConfig: config }
+  );
+}
+
+export async function startResolutionRepair(config = {}) {
+  return createQueuedJob(
+    { kind: 'resolution-repair' },
+    { kind: 'resolution-repair', resolutionConfig: config }
   );
 }
 
@@ -132,7 +140,15 @@ async function runScheduledDelivery(reportId, occurrence) {
 }
 
 export async function handler(event) {
-  const { jobId, reportId, scheduled = false, occurrence = null, kind = 'saved-report', hardwareConfig = null } = event.body || {};
+  const {
+    jobId,
+    reportId,
+    scheduled = false,
+    occurrence = null,
+    kind = 'saved-report',
+    hardwareConfig = null,
+    resolutionConfig = null
+  } = event.body || {};
 
   if (scheduled) {
     if (!reportId) return;
@@ -155,6 +171,12 @@ export async function handler(event) {
     if (kind === 'hardware-weekly') {
       const result = await buildHardwareWeeklyReportV2(hardwareConfig || {});
       await storeWorkbook(jobId, baseStatus, result, started, 'weekly-sd-hardware-report.xlsx');
+      return;
+    }
+
+    if (kind === 'resolution-repair') {
+      const result = await buildResolutionRepairCsv(resolutionConfig || {});
+      await storeWorkbook(jobId, baseStatus, result, started, 'jira-resolution-date-repair.csv');
       return;
     }
 
