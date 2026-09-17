@@ -14,6 +14,12 @@ modules:
         function: resolver
       title: Excel Report Manager
       layout: blank
+    - key: nuvriqo-excel-portal-reports-admin
+      resource: portal-admin-ui
+      resolver:
+        function: portal-resolver
+      title: Excel Report Manager - Portal Reports
+      layout: blank
 
   jira:projectPage:
     - key: nuvriqo-excel-report-manager-project
@@ -32,6 +38,16 @@ modules:
       tooltip: Export the current Jira search using a saved Excel template
       viewportSize: large
 
+  jiraServiceManagement:portalUserMenuAction:
+    - key: nuvriqo-excel-portal-reports
+      resource: portal-ui
+      resolver:
+        function: portal-resolver
+      title: Reports
+      viewportSize: xlarge
+      unlicensedAccess:
+        - customer
+
   scheduledTrigger:
     - key: report-dispatcher
       function: scheduler
@@ -41,6 +57,9 @@ modules:
     - key: report-export-consumer
       queue: report-export-queue
       function: export-worker
+    - key: portal-report-consumer
+      queue: portal-report-queue
+      function: portal-worker
 
   function:
     - key: resolver
@@ -50,18 +69,31 @@ modules:
     - key: export-worker
       handler: asyncExport.handler
       timeoutSeconds: 900
+    - key: portal-resolver
+      handler: portalReports.handler
+    - key: portal-worker
+      handler: portalReports.portalWorker
+      timeoutSeconds: 900
 
 resources:
   - key: admin-ui
     path: static/admin-ui/dist
   - key: navigator-ui
     path: static/navigator-ui/dist
+  - key: portal-ui
+    path: static/portal-ui/dist
+  - key: portal-admin-ui
+    path: static/portal-admin-ui/dist
 
 permissions:
   scopes:
     - read:jira-work
     - read:field:jira
     - read:filter:jira
+    - read:servicedesk-request
+    - read:organization:jira-service-management
+    - read:servicedesk.customer:jira-service-management
+    - read:user:jira
     - storage:app
   external:
     fetch:
