@@ -60,6 +60,7 @@ function App() {
     resolutionName: 'Done',
     maxIssues: 10000
   });
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [repairBusy, setRepairBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -68,23 +69,37 @@ function App() {
   const [lastResult, setLastResult] = useState(null);
 
   useEffect(() => {
-    invoke('report:hardware-weekly:defaults').then(defaults => {
-      if (!defaults) return;
-      setForm(current => ({
-        ...current,
-        ...defaults,
-        startDate: current.startDate,
-        endDate: current.endDate,
-        receivedStatuses: (defaults.receivedStatuses || []).join(', '),
-        awaitingDispatchStatuses: (defaults.awaitingDispatchStatuses || []).join(', '),
-        awaitingReturnStatuses: (defaults.awaitingReturnStatuses || []).join(', ')
-      }));
-    }).catch(() => {});
+    Promise.allSettled([
+      invoke('report:hardware-weekly:defaults'),
+      invoke('report:resolution-repair:defaults'),
+      invoke('report:hardware-weekly:settings:get')
+    ]).then(results => {
+      const hardwareDefaults = results[0].status === 'fulfilled' ? results[0].value : null;
+      const repairDefaults = results[1].status === 'fulfilled' ? results[1].value : null;
+      const saved = results[2].status === 'fulfilled' ? results[2].value : null;
 
-    invoke('report:resolution-repair:defaults').then(defaults => {
-      if (defaults) setRepair(current => ({ ...current, ...defaults }));
-    }).catch(() => {});
-  }, []);
+      const defaultForm = hardwareDefaults ? {
+        ...hardwareDefaults,
+        startDate: defaultDates.startDate,
+        endDate: defaultDates.endDate,
+        receivedStatuses: (hardwareDefaults.receivedStatuses || []).join(', '),
+        awaitingDispatchStatuses: (hardwareDefaults.awaitingDispatchStatuses || []).join(', '),
+        awaitingReturnStatuses: (hardwareDefaults.awaitingReturnStatuses || []).join(', ')
+      } : {};
+
+      setForm(current => ({ ...current, ...defaultForm, ...(saved?.form || {}) }));
+      setRepair(current => ({ ...current, ...(repairDefaults || {}), ...(saved?.repair || {}) }));
+      setSettingsLoaded(true);
+    }).catch(() => setSettingsLoaded(true));
+  }, [defaultDates.endDate, defaultDates.startDate]);
+
+  useEffect(() => {
+    if (!settingsLoaded) return;
+    const timer = setTimeout(() => {
+      invoke('report:hardware-weekly:settings:save', { form, repair }).catch(() => {});
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [form, repair, settingsLoaded]);
 
   const set = (name, value) => setForm(f => ({ ...f, [name]: value }));
   const setRepairField = (name, value) => setRepair(f => ({ ...f, [name]: value }));
@@ -194,7 +209,7 @@ function App() {
       <div className="sectionHead">
         <div>
           <h2>Reporting period</h2>
-          <p>The selected dates are automatically added to the two JQL queries.</p>
+          <p>The selected dates are automatically added to the two JQL queries. All options on this page are saved automatically and restored the next time you open it.</p>
         </div>
       </div>
       <div className="grid two">
