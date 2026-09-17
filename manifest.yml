@@ -41,13 +41,15 @@ modules:
 
   jiraServiceManagement:portalUserMenuAction:
     - key: nuvriqo-excel-portal-reports
-      resource: portal-ui
+      resource: portal-native-ui
       resolver:
         function: portal-resolver
+      render: native
       title: Reports
       viewportSize: xlarge
       unlicensedAccess:
         - customer
+        - unlicensed
 
   scheduledTrigger:
     - key: report-dispatcher
@@ -81,8 +83,8 @@ resources:
     path: static/admin-ui/dist
   - key: navigator-ui
     path: static/navigator-ui/dist
-  - key: portal-ui
-    path: static/portal-ui/dist
+  - key: portal-native-ui
+    path: src/frontend/portal-reports.jsx
   - key: portal-admin-ui
     path: static/portal-admin-ui/dist
 
