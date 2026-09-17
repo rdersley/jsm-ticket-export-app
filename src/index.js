@@ -6,6 +6,7 @@ import { getRuns } from './services/runHistory.js';
 import { runReport } from './services/runner.js';
 import { startExport, getExportStatus, getExportChunk, cleanupExport } from './asyncExport.js';
 import { getEmailSettings, saveEmailSettings, sendTestEmail } from './services/email.js';
+import { buildHardwareWeeklyReport, HARDWARE_WEEKLY_DEFAULTS } from './services/hardwareWeeklyReport.js';
 
 const resolver = new Resolver();
 resolver.define('report:list', () => listReports());
@@ -26,6 +27,8 @@ resolver.define('report:run:status', ({ payload }) => getExportStatus(payload.jo
 resolver.define('report:run:chunk', ({ payload }) => getExportChunk(payload.jobId, payload.index));
 resolver.define('report:run:cleanup', ({ payload }) => cleanupExport(payload.jobId));
 resolver.define('report:run', async ({ payload }) => runReport(await getReport(payload.id), { delivery: false }));
+resolver.define('report:hardware-weekly:defaults', () => structuredClone(HARDWARE_WEEKLY_DEFAULTS));
+resolver.define('report:hardware-weekly:run', ({ payload }) => buildHardwareWeeklyReport(payload || {}));
 resolver.define('report:navigator-export', async ({ payload }) => {
   const template = await getReport(payload.id);
   if (!template) throw new Error('Template not found.');
