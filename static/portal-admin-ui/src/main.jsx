@@ -4,7 +4,6 @@ import { invoke } from '@forge/bridge';
 import './styles.css';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-
 function unique(values){return [...new Set((values||[]).map(String))]}
 
 function App(){
@@ -14,6 +13,7 @@ function App(){
   const [selected,setSelected]=useState(null);
   const [customerQuery,setCustomerQuery]=useState('');
   const [customerResults,setCustomerResults]=useState([]);
+  const [knownUsers,setKnownUsers]=useState({});
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState('');
 
@@ -40,20 +40,24 @@ function App(){
   const searchCustomers=async()=>{
     const serviceDeskId=(cfg.serviceDeskIds||[])[0];
     if(!serviceDeskId){setMessage('Select a service project first.');return}
-    setBusy(true);try{setCustomerResults(await invoke('portal-admin:customers',{serviceDeskId,query:customerQuery})||[])}catch(e){setMessage(e?.message||'Could not search portal customers.')}finally{setBusy(false)}
+    setBusy(true);try{
+      const results=await invoke('portal-admin:customers',{serviceDeskId,query:customerQuery})||[];
+      setCustomerResults(results);
+      setKnownUsers(existing=>({...existing,...Object.fromEntries(results.filter(u=>u.accountId).map(u=>[String(u.accountId),u]))}));
+    }catch(e){setMessage(e?.message||'Could not search portal customers.')}finally{setBusy(false)}
   };
   const publish=async()=>{
-    setBusy(true);setMessage(`Generating a portal copy of ${selected.name}…`);
+    setBusy(true);setMessage(`Generating a portal copy of ${selected.name}…`);let jobId;
     try{
-      const started=await invoke('portal-admin:publish',{reportId:selected.id});
+      const started=await invoke('portal-admin:publish',{reportId:selected.id});jobId=started.jobId;
       for(let i=0;i<300;i++){
-        const status=await invoke('portal-admin:job-status',{jobId:started.jobId});
+        const status=await invoke('portal-admin:job-status',{jobId});
         if(status?.state==='ready'){setMessage(`Published ${status.issueCount??0} work items to the portal.`);await load();return}
         if(status?.state==='failed')throw new Error(status.message||'Portal publish failed.');
         await sleep(2000);
       }
       throw new Error('The report is still generating.');
-    }catch(e){setMessage(e?.message||'Could not publish portal report.')}finally{setBusy(false)}
+    }catch(e){setMessage(e?.message||'Could not publish portal report.')}finally{if(jobId)await invoke('portal-admin:job-cleanup',{jobId}).catch(()=>{});setBusy(false)}
   };
 
   const selectedUsers=useMemo(()=>unique(cfg.userAccountIds||[]),[cfg.userAccountIds]);
@@ -65,16 +69,16 @@ function App(){
     <section className="panel">
       <label className="check"><input type="checkbox" checked={cfg.enabled===true} onChange={e=>patch('enabled',e.target.checked)}/>Publish this report to the JSM customer portal</label>
       <div className="grid"><label>Portal access<select value={cfg.accessMode||'all'} onChange={e=>patch('accessMode',e.target.value)}><option value="all">All signed-in portal customers in selected service projects</option><option value="selected">Only selected users and organisations</option></select></label><label>Actions<div className="checks"><label><input type="checkbox" checked={cfg.allowDownload!==false} onChange={e=>patch('allowDownload',e.target.checked)}/>Download latest</label><label><input type="checkbox" checked={cfg.allowRun!==false} onChange={e=>patch('allowRun',e.target.checked)}/>Generate on demand</label></div></label></div>
-      <h2>Service projects</h2><p className="help">Choose where the Reports menu should expose this report. Leave all unchecked to allow it from any JSM portal where the user otherwise has access.</p>
+      <h2>Service projects</h2><p className="help">Choose where this report is available. Leave all unchecked to allow it from any JSM portal where the customer otherwise has access.</p>
       <div className="options">{serviceDesks.map(d=><label key={d.id}><input type="checkbox" checked={(cfg.serviceDeskIds||[]).includes(String(d.id))} onChange={()=>toggleId('serviceDeskIds',d.id)}/><span>{d.projectName||d.name||`Service project ${d.id}`}</span></label>)}</div>
 
       {cfg.accessMode==='selected'&&<>
         <h2>Selected portal users</h2><div className="searchRow"><input value={customerQuery} onChange={e=>setCustomerQuery(e.target.value)} placeholder="Search name or email"/><button disabled={busy} onClick={searchCustomers}>Search</button></div>
-        {!!selectedUsers.length&&<div className="chips">{selectedUsers.map(id=><span key={id}>{id}<button onClick={()=>toggleId('userAccountIds',id)}>×</button></span>)}</div>}
+        {!!selectedUsers.length&&<div className="chips">{selectedUsers.map(id=>{const u=knownUsers[id];return <span key={id}>{u?.displayName||u?.emailAddress||id}<button onClick={()=>toggleId('userAccountIds',id)}>×</button></span>})}</div>}
         {!!customerResults.length&&<div className="results">{customerResults.map(u=><div key={u.accountId||u.name}><div><strong>{u.displayName||u.name}</strong><small>{u.emailAddress||u.email||u.accountId}</small></div><button disabled={selectedUsers.includes(String(u.accountId))} onClick={()=>toggleId('userAccountIds',u.accountId)}>Add</button></div>)}</div>}
         <h2>Selected organisations</h2><div className="options">{organizations.map(o=><label key={o.id}><input type="checkbox" checked={selectedOrgs.includes(String(o.id))} onChange={()=>toggleId('organizationIds',o.id)}/><span>{o.name}</span></label>)}</div>
       </>}
-      <div className="info">A portal customer must be signed in. If access is restricted, the app checks their Atlassian account and their JSM organisation memberships before showing the report.</div>
+      <div className="info">Portal users must be signed in. Restricted reports are checked against the customer's Atlassian account and JSM organisation memberships before they are listed, generated or downloaded.</div>
     </section>
   </main>;
 
