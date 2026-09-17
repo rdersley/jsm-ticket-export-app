@@ -1,3 +1,3 @@
 Marketplace production release trigger — 2026-09-17
 
-Release reason: deploy improved Jira search diagnostics for the Weekly SD → Hardware Report on retailinmotion.atlassian.net. Jira HTTP 400 responses now surface the actual Jira error text instead of only 'Searching Jira issues failed (400)', so invalid JQL, field names, option values or generated date clauses can be identified immediately.
+Release reason: deploy the Weekly SD → Hardware Report improvements to retailinmotion.atlassian.net, including the bulk historical Resolution Date repair CSV tool and automatic persistence of all report options. The page now remembers reporting dates, SD/HW project keys and JQL, field IDs, workflow status mappings, issue limits, and resolution-repair options so users do not need to re-enter them each time.
