@@ -1,7 +1,26 @@
 import api, { route } from '@forge/api';
 
 async function jsonOrThrow(response, label) {
-  if (!response.ok) throw new Error(`${label} failed (${response.status})`);
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const text = await response.text();
+      if (text) {
+        try {
+          const parsed = JSON.parse(text);
+          const messages = [
+            ...(Array.isArray(parsed?.errorMessages) ? parsed.errorMessages : []),
+            ...Object.entries(parsed?.errors || {}).map(([field, message]) => `${field}: ${message}`),
+            parsed?.message
+          ].filter(Boolean);
+          detail = messages.length ? messages.join(' | ') : text;
+        } catch {
+          detail = text;
+        }
+      }
+    } catch {}
+    throw new Error(`${label} failed (${response.status})${detail ? `: ${detail.slice(0, 800)}` : ''}`);
+  }
   return response.json();
 }
 
@@ -51,7 +70,7 @@ export async function listFilters() {
   })(), 8000, []);
 }
 
-export async function searchIssues(jql, fieldIds, maxIssues = 500) {
+export async function searchIssues(jql, fieldIds, maxIssues = 500, label = 'Searching Jira issues') {
   const issues = [];
   let nextPageToken;
   const fields = [...new Set(['summary', ...fieldIds.filter(Boolean)])];
@@ -60,10 +79,10 @@ export async function searchIssues(jql, fieldIds, maxIssues = 500) {
     if (nextPageToken) body.nextPageToken = nextPageToken;
     const response = await api.asApp().requestJira(route`/rest/api/3/search/jql`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify(body)
     });
-    const data = await jsonOrThrow(response, 'Searching Jira issues');
+    const data = await jsonOrThrow(response, label);
     issues.push(...(data.issues || []));
     nextPageToken = data.nextPageToken;
     if (!nextPageToken || !(data.issues || []).length) break;
