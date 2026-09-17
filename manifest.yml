@@ -39,14 +39,12 @@ modules:
       tooltip: Export the current Jira search using a saved Excel template
       viewportSize: large
 
-  jiraServiceManagement:portalUserMenuAction:
+  jiraServiceManagement:portalSubheader:
     - key: nuvriqo-excel-portal-reports
       resource: portal-native-ui
       resolver:
         function: portal-resolver
       render: native
-      title: Reports
-      viewportSize: xlarge
       unlicensedAccess:
         - customer
         - unlicensed
