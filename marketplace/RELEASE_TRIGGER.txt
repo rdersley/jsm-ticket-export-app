@@ -1,3 +1,3 @@
-Marketplace v1 production release trigger — 2026-09-14
+Marketplace production release trigger — 2026-09-17
 
-Release reason: move scheduled report generation and email delivery into the existing long-running async consumer so large scheduled reports are not killed by the Forge scheduled-trigger runtime limit. Catch-up scheduling remains enabled for the rest of the eligible day.
+Release reason: promote the Portal Reports feature to production after successful development validation. This release adds controlled JSM portal report publishing, portal downloads and on-demand generation, removes customer OAuth/Allow access prompts by using app-side authorization checks, and preserves the async report generation architecture for large exports.
