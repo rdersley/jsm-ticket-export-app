@@ -4,7 +4,7 @@ import { listReports, getReport, saveReport, deleteReport } from './services/rep
 import { listFields, listFilters } from './services/jira.js';
 import { getRuns } from './services/runHistory.js';
 import { runReport } from './services/runner.js';
-import { startExport, getExportStatus, getExportChunk, cleanupExport } from './asyncExport.js';
+import { startExport, startHardwareWeeklyExport, getExportStatus, getExportChunk, cleanupExport } from './asyncExport.js';
 import { getEmailSettings, saveEmailSettings, sendTestEmail } from './services/email.js';
 import { buildHardwareWeeklyReportV2, HARDWARE_WEEKLY_DEFAULTS_V2 } from './services/hardwareWeeklyReportV2.js';
 
@@ -28,6 +28,7 @@ resolver.define('report:run:chunk', ({ payload }) => getExportChunk(payload.jobI
 resolver.define('report:run:cleanup', ({ payload }) => cleanupExport(payload.jobId));
 resolver.define('report:run', async ({ payload }) => runReport(await getReport(payload.id), { delivery: false }));
 resolver.define('report:hardware-weekly:defaults', () => structuredClone(HARDWARE_WEEKLY_DEFAULTS_V2));
+resolver.define('report:hardware-weekly:start', ({ payload }) => startHardwareWeeklyExport(payload || {}));
 resolver.define('report:hardware-weekly:run', ({ payload }) => buildHardwareWeeklyReportV2(payload || {}));
 resolver.define('report:navigator-export', async ({ payload }) => {
   const template = await getReport(payload.id);
