@@ -1,13 +1,9 @@
-# Nuvriqo Excel Report Manager for Jira
+# Nuvriqo Excel Report Manager
 
-A Forge app for creating, previewing, scheduling and delivering professional Excel reports from Jira without Jira Automation rules.
+Create, style, schedule and email professional Jira Excel reports without Jira Automation rules.
 
-## Current V1 build
+## Core features
 
-- Dedicated global Jira admin page
-- Report dashboard with active/draft state
-- Five-step report wizard
-- Saved Jira filter picker plus direct JQL
 - Standard and custom Jira field discovery
 - Add, rename, resize and reorder Excel columns
 - Visual workbook options and mini-preview
@@ -15,18 +11,42 @@ A Forge app for creating, previewing, scheduling and delivering professional Exc
 - Pagination up to a configurable issue limit
 - Jira hyperlinks, filters, frozen headers, titles and alternating rows
 - Downloadable live preview
-- Manual Run now and download
-- Friendly daily / weekdays / weekly / monthly schedules
-- App-owned scheduler and duplicate-run protection
-- Email recipients, CC, subject/body and attachment template configuration
-- Run history
-- Duplicate and delete report actions
+- Scheduled report delivery
+- Microsoft 365 / Graph and SendGrid email delivery
+- Reusable templates from Jira search / issue navigator
+- Portal report publishing for JSM customers
 
-## Remaining deployment work
+## Weekly SD → Hardware Management Report
 
-1. Create/register the dedicated Forge app and replace `REPLACE_WITH_FORGE_APP_ID` in the manifest.
-2. Choose and configure the Marketplace-safe email transport adapter.
-3. Run Forge lint/build/deploy and install into the test Jira site.
-4. Add automated unit/integration tests before release candidate.
+The app also includes a dedicated management export for support flows where crew/customer demand starts in one Jira project and agents create a separate Hardware issue when physical intervention is required.
 
-The app is intentionally separate from the existing Nuvriqo JSM portal CSV exporter.
+The report runs two independent base JQL queries:
+
+- **SD JQL** for Service Desk demand, for example `project = SD AND "SD Client" = RYR`
+- **HW JQL** for Hardware workload, for example `project = HW AND "SD Client" = RYR`
+
+The app adds the selected report period to both queries automatically and generates one workbook containing:
+
+- SD tickets raised
+- SD tickets escalated to linked HW issues
+- escalation rate
+- HW tickets created
+- devices sent using the configured Date Sent field
+- devices received back using Jira status-transition history
+- current open HW tickets
+- open HW tickets older than two weeks
+- HW tickets closed during the period
+- awaiting-dispatch and awaiting-return counts
+- separate SD and HW detail sheets
+- a configuration sheet showing the actual JQL and mappings used
+
+The Jira global navigation entry is **Weekly SD → Hardware Report**.
+
+## Development
+
+```bash
+npm install
+npm test
+npm run build
+forge lint
+```
