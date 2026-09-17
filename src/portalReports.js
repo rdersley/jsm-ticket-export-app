@@ -59,9 +59,6 @@ function accountIdFrom(context) {
 function portalIdFrom(context) {
   const direct = String(context?.extension?.portal?.id || context?.portal?.id || '').trim();
   if (direct) return direct;
-
-  // portalUserMenuAction exposes the portal page URL as extension.location.
-  // Derive the portal ID from that URL when there is no explicit portal object.
   const location = String(context?.extension?.location || context?.location || '').trim();
   const match = location.match(/\/portal\/(\d+)(?:\/|$|\?)/i);
   return match?.[1] || '';
@@ -76,28 +73,21 @@ async function requireAdmin() {
   if (!data?.permissions?.ADMINISTER?.havePermission) throw new Error('Jira administrator permission is required.');
 }
 
-async function isAccountInOrganization(accountId, organizationId) {
-  let start = 0;
-  for (let page = 0; page < 100; page += 1) {
-    try {
-      const response = await api.asApp().requestJira(
-        route`/rest/servicedeskapi/organization/${organizationId}/user?start=${start}&limit=100`,
-        { headers: { Accept: 'application/json' } }
-      );
-      if (!response.ok) return false;
-      const data = await response.json();
-      const values = data.values || [];
-      if (values.some(user => String(user.accountId || '') === accountId)) return true;
-      if (data.isLastPage === true || !values.length) return false;
-      start += values.length;
-    } catch {
-      return false;
-    }
+async function organizationIdsForAccount(accountId) {
+  try {
+    const response = await api.asApp().requestJira(
+      route`/rest/servicedeskapi/organization?accountId=${accountId}&limit=100`,
+      { headers: { Accept: 'application/json' } }
+    );
+    if (!response.ok) return [];
+    const data = await response.json();
+    return cleanIds((data.values || []).map(org => org.id));
+  } catch {
+    return [];
   }
-  return false;
 }
 
-async function isAllowed(reportId, context) {
+async function isAllowed(reportId, context, cachedOrgIds = null) {
   const config = await getConfig(reportId);
   if (!config.enabled) return { allowed: false, config };
 
@@ -110,8 +100,11 @@ async function isAllowed(reportId, context) {
   if (config.accessMode === 'all') return { allowed: true, config };
   if (config.userAccountIds.includes(accountId)) return { allowed: true, config };
 
-  for (const organizationId of config.organizationIds) {
-    if (await isAccountInOrganization(accountId, organizationId)) return { allowed: true, config };
+  if (config.organizationIds.length) {
+    const accountOrgIds = cachedOrgIds || await organizationIdsForAccount(accountId);
+    if (config.organizationIds.some(id => accountOrgIds.includes(String(id)))) {
+      return { allowed: true, config };
+    }
   }
 
   return { allowed: false, config };
@@ -130,11 +123,16 @@ async function listAdminReports() {
 }
 
 async function listPortalReports(context) {
-  accountIdFrom(context);
+  const accountId = accountIdFrom(context);
   const reports = await listReports();
+  let accountOrgIds = null;
   const visible = [];
   for (const report of reports) {
-    const access = await isAllowed(report.id, context);
+    const cfg = await getConfig(report.id);
+    if (cfg.accessMode === 'selected' && cfg.organizationIds.length && !cfg.userAccountIds.includes(accountId) && accountOrgIds === null) {
+      accountOrgIds = await organizationIdsForAccount(accountId);
+    }
+    const access = await isAllowed(report.id, context, accountOrgIds || []);
     if (!access.allowed) continue;
     const latest = await kvs.get(latestKey(report.id));
     visible.push({
@@ -289,19 +287,33 @@ resolver.define('portal-admin:customers', async ({ payload }) => {
   await requireAdmin();
   const serviceDeskId = String(payload.serviceDeskId || '').trim();
   const query = String(payload.query || '').trim();
-  if (!serviceDeskId) return [];
+  if (!serviceDeskId || !query) return [];
 
-  // The JSM customer endpoint is experimental and returns HTTP 412 unless the
-  // caller explicitly opts in. This is an admin-only configuration action.
-  const response = await api.asUser().requestJira(
+  const jsmResponse = await api.asUser().requestJira(
     route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?query=${query}&limit=50`,
     { headers: { Accept: 'application/json', 'X-ExperimentalApi': 'opt-in' } }
   );
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '');
-    throw new Error(`Could not load portal customers (${response.status})${detail ? `: ${detail.slice(0, 180)}` : ''}`);
+  if (jsmResponse.ok) return (await jsmResponse.json()).values || [];
+
+  // Some admins can configure Jira globally but do not have the service-project
+  // permission needed by the experimental JSM customer endpoint. Fall back to
+  // Jira's user picker in that case, still in the signed-in admin context.
+  const pickerResponse = await api.asUser().requestJira(
+    route`/rest/api/3/user/picker?query=${query}&maxResults=50`,
+    { headers: { Accept: 'application/json' } }
+  );
+  if (!pickerResponse.ok) {
+    const jsmDetail = await jsmResponse.text().catch(() => '');
+    const pickerDetail = await pickerResponse.text().catch(() => '');
+    throw new Error(`Could not load portal customers (${jsmResponse.status}/${pickerResponse.status})${pickerDetail || jsmDetail ? `: ${(pickerDetail || jsmDetail).slice(0, 180)}` : ''}`);
   }
-  return (await response.json()).values || [];
+  const picker = await pickerResponse.json();
+  return (picker.users || []).map(user => ({
+    accountId: user.accountId,
+    displayName: user.displayName || user.emailAddress || user.accountId,
+    emailAddress: user.emailAddress || '',
+    active: true
+  })).filter(user => user.accountId);
 });
 resolver.define('portal-admin:organizations', async () => {
   await requireAdmin();
