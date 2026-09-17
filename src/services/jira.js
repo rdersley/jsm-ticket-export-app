@@ -70,3 +70,22 @@ export async function searchIssues(jql, fieldIds, maxIssues = 500) {
   }
   return { issues, total: issues.length };
 }
+
+export async function getIssueChangelog(issueKey, maxItems = 500) {
+  const histories = [];
+  let startAt = 0;
+  const pageSize = Math.min(100, Math.max(1, Number(maxItems) || 500));
+
+  while (histories.length < maxItems) {
+    const response = await api.asApp().requestJira(
+      route`/rest/api/3/issue/${issueKey}/changelog?startAt=${startAt}&maxResults=${Math.min(pageSize, maxItems - histories.length)}`
+    );
+    const data = await jsonOrThrow(response, `Loading changelog for ${issueKey}`);
+    const values = data.values || [];
+    histories.push(...values);
+    if (!values.length || histories.length >= Number(data.total || 0)) break;
+    startAt += values.length;
+  }
+
+  return histories.slice(0, maxItems);
+}

@@ -5,8 +5,9 @@
   "description": "Visual, scheduled Excel reporting for Jira without Jira Automation rules.",
   "main": "src/index.js",
   "scripts": {
-    "build": "npm run build:admin && npm run build:navigator && npm run build:portal-admin",
+    "build": "npm run build:admin && npm run build:hardware && npm run build:navigator && npm run build:portal-admin",
     "build:admin": "vite build --config static/admin-ui/vite.config.js",
+    "build:hardware": "vite build --config static/hardware-ui/vite.config.js",
     "build:navigator": "vite build --config static/navigator-ui/vite.config.js",
     "build:portal-admin": "vite build --config static/portal-admin-ui/vite.config.js",
     "test": "node --experimental-default-type=module --test tests/*.test.js",
