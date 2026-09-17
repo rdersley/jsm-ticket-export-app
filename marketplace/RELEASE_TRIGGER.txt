@@ -1,3 +1,3 @@
 Marketplace production release trigger — 2026-09-17
 
-Release reason: replace the unreliable JSM Reports user-menu modal with a native portal subheader on retailinmotion.atlassian.net. This uses the same proven native portal placement pattern as Smart Approval while keeping the existing report access controls, generation and secure storage backend.
+Release reason: deploy the reliable Portal Reports customer picker to retailinmotion.atlassian.net. The admin picker now pages the real customers from the selected JSM service desk and filters names/emails locally instead of relying on Atlassian's inconsistent server-side customer query matching. A Jira user-picker fallback remains for service-project permission edge cases.
