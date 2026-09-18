@@ -13,8 +13,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: portal-reports-bridge-development
-  cancel-in-progress: true
+  group: forge-development-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
