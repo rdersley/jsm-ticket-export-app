@@ -4,6 +4,7 @@ modules:
       resource: portal-ui
       resolver:
         function: portal-resolver
+      render: native
       unlicensedAccess:
         - customer
         - unlicensed
@@ -14,7 +15,7 @@ modules:
 
 resources:
   - key: portal-ui
-    path: static/portal-ui/dist
+    path: src/frontend.jsx
 
 permissions:
   scopes:
