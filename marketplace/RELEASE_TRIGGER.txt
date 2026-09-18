@@ -1,5 +1,9 @@
-Production release trigger — 2026-09-18
+Production hotfix trigger — 2026-09-18
 
-Release reason: deploy the consent-free split Portal Reports architecture to retailinmotion.atlassian.net after successful development validation. Keep Excel Report Manager, scheduler, saved reports, private Weekly SD → Hardware and Resolution Repair tooling in the main app. Remove the customer portal module from the scoped main app, add the authenticated report bridge, and install the separate storage-only Nuvriqo Portal Reports app for customer listing, generation and XLSX download.
+Fix Portal Reports access filtering and portal user search on retailinmotion.atlassian.net.
 
-Development validation completed successfully: report generation reached ready state and the published workbook was retrieved through the bridge and verified as a valid XLSX archive.
+Changes:
+- dynamically verify selected JSM organisation membership at portal access time instead of relying only on the saved organisation-member snapshot;
+- search portal users across every selected service project;
+- use JSM server-side customer search for name/email queries and merge Jira picker fallback results;
+- preserve the consent-free split Portal Reports architecture and all existing private Excel Report Manager tooling.
