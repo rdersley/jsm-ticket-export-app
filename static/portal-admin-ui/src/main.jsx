@@ -41,9 +41,10 @@ function App(){
     const serviceDeskIds=cfg.serviceDeskIds||[];
     if(!serviceDeskIds.length){setMessage('Select at least one service project first.');return}
     setBusy(true);try{
-      const results=await invoke('portal-admin:customers',{serviceDeskIds,query:customerQuery})||[];
+      const results=await invoke('portal-admin:customers',{serviceDeskIds,organizationIds:cfg.organizationIds||[],query:customerQuery})||[];
       setCustomerResults(results);
       setKnownUsers(existing=>({...existing,...Object.fromEntries(results.filter(u=>u.accountId).map(u=>[String(u.accountId),u]))}));
+      setMessage(results.length ? `${results.length} matching portal user${results.length===1?'':'s'} found.` : 'No matching portal users found.');
     }catch(e){setMessage(e?.message||'Could not search portal customers.')}finally{setBusy(false)}
   };
   const publish=async()=>{
@@ -73,7 +74,7 @@ function App(){
       <div className="options">{serviceDesks.map(d=><label key={d.id}><input type="checkbox" checked={(cfg.serviceDeskIds||[]).includes(String(d.id))} onChange={()=>toggleId('serviceDeskIds',d.id)}/><span>{d.projectName||d.name||`Service project ${d.id}`}</span></label>)}</div>
 
       {cfg.accessMode==='selected'&&<>
-        <h2>Selected portal users</h2><div className="searchRow"><input value={customerQuery} onChange={e=>setCustomerQuery(e.target.value)} placeholder="Search name or email"/><button disabled={busy} onClick={searchCustomers}>Search</button></div>
+        <h2>Selected portal users</h2><div className="searchRow"><input value={customerQuery} onChange={e=>setCustomerQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();searchCustomers()}}} placeholder="Search name or email"/><button disabled={busy} onClick={searchCustomers}>Search</button></div>
         {!!selectedUsers.length&&<div className="chips">{selectedUsers.map(id=>{const u=knownUsers[id];return <span key={id}>{u?.displayName||u?.emailAddress||id}<button onClick={()=>toggleId('userAccountIds',id)}>×</button></span>})}</div>}
         {!!customerResults.length&&<div className="results">{customerResults.map(u=><div key={u.accountId||u.name}><div><strong>{u.displayName||u.name}</strong><small>{u.emailAddress||u.email||u.accountId}</small></div><button disabled={selectedUsers.includes(String(u.accountId))} onClick={()=>toggleId('userAccountIds',u.accountId)}>Add</button></div>)}</div>}
         <h2>Selected organisations</h2><div className="options">{organizations.map(o=><label key={o.id}><input type="checkbox" checked={selectedOrgs.includes(String(o.id))} onChange={()=>toggleId('organizationIds',o.id)}/><span>{o.name}</span></label>)}</div>
