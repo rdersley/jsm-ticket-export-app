@@ -48,7 +48,7 @@ modules:
 
   webtrigger:
     - key: portal-bridge
-      function: portal-bridge
+      function: portal-bridge-fn
       urlFormat: v2
       response:
         type: dynamic
@@ -78,7 +78,7 @@ modules:
       handler: portalReports.handler
     - key: portal-customer
       handler: portalCustomer.handler
-    - key: portal-bridge
+    - key: portal-bridge-fn
       handler: portalBridge.trigger
     - key: portal-worker
       handler: portalReports.portalWorker
