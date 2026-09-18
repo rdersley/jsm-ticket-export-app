@@ -1,3 +1,3 @@
 Production release trigger — 2026-09-18
 
-Release reason: remove the consent-gated Portal Reports subheader from the Retail in Motion production portal after v7 confirmed that any resolver-backed portal module in this app triggers Atlassian's Allow access prompt. Preserve all admin reporting, scheduler, private Weekly SD → Hardware and resolution-repair functionality unchanged while the portal delivery architecture is redesigned off-production.
+Release reason: remove the remaining resolver-backed portal probe from the Retail in Motion production manifest so customers no longer see Atlassian's Allow access prompt. Preserve Export your requests, admin reporting, scheduler, private Weekly SD → Hardware and resolution-repair functionality unchanged while portal delivery is redesigned off-production.
