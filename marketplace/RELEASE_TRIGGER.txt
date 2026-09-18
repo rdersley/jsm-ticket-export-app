@@ -1,3 +1,3 @@
 Production release trigger — 2026-09-18
 
-Release reason: remove the customer-facing Portal Reports module from the worksite production manifest after the minimal v9 probe proved that attaching any Forge resolver to this portal module triggers Atlassian's customer Allow access prompt. This restores a clean customer portal while a consent-free delivery architecture is built separately. Keep scheduler, admin Portal Reports, Weekly SD → Hardware and resolution-repair functionality unchanged.
+Release reason: restore a visible consent-free Portal Reports placeholder on the customer portal after the resolver probe was removed. Use fresh v10 portal module identity with static UI only, so customers see the Reports section without an Allow access prompt while secure dynamic report delivery is redesigned. Keep scheduler, admin Portal Reports, Weekly SD → Hardware and resolution-repair functionality unchanged.
