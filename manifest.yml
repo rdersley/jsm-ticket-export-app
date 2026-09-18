@@ -46,15 +46,12 @@ modules:
       tooltip: Export the current Jira search using a saved Excel template
       viewportSize: large
 
-  jiraServiceManagement:portalSubheader:
-    - key: portal-v9
-      resource: portal-v9-ui
-      resolver:
-        function: portal-probe
-      render: native
-      unlicensedAccess:
-        - customer
-        - unlicensed
+  webtrigger:
+    - key: portal-bridge
+      function: portal-bridge
+      urlFormat: v2
+      response:
+        type: dynamic
 
   scheduledTrigger:
     - key: report-dispatcher
@@ -81,8 +78,8 @@ modules:
       handler: portalReports.handler
     - key: portal-customer
       handler: portalCustomer.handler
-    - key: portal-probe
-      handler: portalProbe.handler
+    - key: portal-bridge
+      handler: portalBridge.trigger
     - key: portal-worker
       handler: portalReports.portalWorker
       timeoutSeconds: 900
@@ -94,13 +91,19 @@ resources:
     path: static/hardware-ui/dist
   - key: navigator-ui
     path: static/navigator-ui/dist
-  - key: portal-v9-ui
-    path: src/frontend/portal-reports.jsx
   - key: portal-admin-ui
     path: static/portal-admin-ui/dist
 
 permissions:
   scopes:
+    - read:jira-work
+    - read:field:jira
+    - read:filter:jira
+    - read:servicedesk-request
+    - read:organization:jira-service-management
+    - read:organization.user:jira-service-management
+    - read:servicedesk.customer:jira-service-management
+    - read:user:jira
     - storage:app
   external:
     fetch:
