@@ -307,7 +307,9 @@ resolver.define('portal-admin:customers', async ({ payload, context }) => {
     let start = 0;
     for (let page = 0; page < 50; page += 1) {
       const response = await api.asApp().requestJira(
-        route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?start=${start}&limit=100`,
+        query
+          ? route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?query=${query}&start=${start}&limit=100`
+          : route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?start=${start}&limit=100`,
         { headers: { Accept: 'application/json', 'X-ExperimentalApi': 'opt-in' } }
       );
       if (!response.ok) break;
