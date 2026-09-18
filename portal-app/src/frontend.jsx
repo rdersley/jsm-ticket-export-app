@@ -1,15 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import ForgeReconciler, { Button, FileCard, Heading, Inline, Lozenge, Spinner, Stack, Text } from '@forge/react';
+import ForgeReconciler, { Button, Heading, Inline, LinkButton, Lozenge, Spinner, Stack, Text } from '@forge/react';
 import { invoke } from '@forge/bridge';
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-const base64ToBlob = (base64, type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') => {
-  const binary = atob(base64 || '');
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return new Blob([bytes], { type });
-};
 
 const PortalReports = () => {
   const [reports, setReports] = useState(null);
@@ -29,17 +22,6 @@ const PortalReports = () => {
   };
 
   useEffect(() => { refresh(); }, []);
-
-  const downloadLatest = async report => {
-    setError('');
-    const meta = await invoke('portal:latest-meta', { reportId: report.id });
-    if (!meta?.chunkCount) throw new Error('There is no published report available to download yet.');
-    let base64 = '';
-    for (let i = 0; i < Number(meta.chunkCount || 0); i += 1) {
-      base64 += await invoke('portal:latest-chunk', { reportId: report.id, index: i });
-    }
-    return base64ToBlob(base64);
-  };
 
   const run = async report => {
     setBusy(report.id);
@@ -94,16 +76,12 @@ const PortalReports = () => {
           {report.description ? <Text>{report.description}</Text> : null}
           {report.latest ? <Text>Latest: {new Date(report.latest.generatedAt).toLocaleString()}{report.latest.issueCount != null ? ` · ${report.latest.issueCount} work items` : ''}</Text> : null}
 
-          {report.allowDownload && report.latest ? (
-            <FileCard
-              fileName={report.latest.filename || `${report.name}.xlsx`}
-              fileSize={Number(report.latest.bytes || 0) || undefined}
-              fileType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              onDownload={async () => {
-                try { return await downloadLatest(report); }
-                catch (e) { setError(e?.message || String(e)); throw e; }
-              }}
-            />
+          {report.allowDownload && report.latest && report.downloadUrl ? (
+            <Inline space="space.100">
+              <LinkButton appearance="primary" href={report.downloadUrl} target="_blank">
+                Download Excel
+              </LinkButton>
+            </Inline>
           ) : null}
 
           {report.allowRun ? (
