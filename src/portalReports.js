@@ -302,24 +302,30 @@ resolver.define('portal-admin:customers', async ({ payload, context }) => {
       : [payload.serviceDeskId]
   );
   const organizationIds = cleanIds(payload.organizationIds);
-  const byAccountId = new Map();
 
-  const addUser = user => {
+  const byAccountId = new Map();
+  const matchedAccountIds = new Set();
+
+  const addUser = (user, matched = false) => {
     const accountId = String(user?.accountId || '').trim();
     if (!accountId) return;
+
     const normalized = {
       accountId,
       displayName: user.displayName || user.name || user.emailAddress || user.email || accountId,
       emailAddress: user.emailAddress || user.email || '',
       active: user.active !== false
     };
+
     byAccountId.set(accountId, {
       ...(byAccountId.get(accountId) || {}),
       ...normalized
     });
+
+    if (matched) matchedAccountIds.add(accountId);
   };
 
-  const matchesQuery = user => {
+  const locallyMatches = user => {
     if (!query) return true;
     return `${user?.displayName || ''} ${user?.name || ''} ${user?.emailAddress || ''} ${user?.email || ''} ${user?.accountId || ''}`
       .toLowerCase()
@@ -348,7 +354,7 @@ resolver.define('portal-admin:customers', async ({ payload, context }) => {
 
         const data = await response.json();
         const values = data.values || [];
-        values.forEach(addUser);
+        values.forEach(user => addUser(user, Boolean(term)));
 
         if (data.isLastPage === true || values.length === 0) break;
         start += values.length;
@@ -361,26 +367,26 @@ resolver.define('portal-admin:customers', async ({ payload, context }) => {
     await searchDesk(serviceDeskId);
   }
 
-  // If nothing matched, expand to every JSM service project on the site.
-  // This catches portal customers who exist on the site but are not attached
-  // to the first selected project returned by Atlassian's customer endpoint.
-  if (queryRaw && ![...byAccountId.values()].some(matchesQuery)) {
+  // If the queried JSM API did not return a match, expand to all service projects.
+  if (queryRaw && matchedAccountIds.size === 0) {
     const desksResponse = await api.asApp().requestJira(
       route`/rest/servicedeskapi/servicedesk?limit=100`,
       { headers: { Accept: 'application/json' } }
     );
+
     if (desksResponse.ok) {
       const desks = (await desksResponse.json()).values || [];
       for (const desk of desks) {
         const id = String(desk?.id || '').trim();
         if (!id || selectedServiceDeskIds.includes(id)) continue;
         await searchDesk(id);
-        if ([...byAccountId.values()].some(matchesQuery)) break;
+        if (matchedAccountIds.size > 0) break;
       }
     }
   }
 
-  // Include selected organisation members.
+  // Include selected organisation members, but only mark them as matches when
+  // their returned visible fields actually match the admin's query.
   for (const organizationId of organizationIds) {
     let start = 0;
     for (let page = 0; page < 50; page += 1) {
@@ -392,14 +398,15 @@ resolver.define('portal-admin:customers', async ({ payload, context }) => {
 
       const data = await response.json();
       const values = data.values || [];
-      values.forEach(addUser);
+      values.forEach(user => addUser(user, locallyMatches(user)));
 
       if (data.isLastPage === true || values.length === 0) break;
       start += values.length;
     }
   }
 
-  // Jira user search fallbacks for licensed users / accounts Jira exposes there.
+  // Jira user search fallbacks. Trust these endpoints' own query match even if
+  // emailAddress is hidden from the returned account object.
   if (queryRaw) {
     for (const term of searchTerms) {
       for (const endpoint of [
@@ -410,13 +417,15 @@ resolver.define('portal-admin:customers', async ({ payload, context }) => {
         if (!response.ok) continue;
         const data = await response.json();
         const users = Array.isArray(data) ? data : (data.users || []);
-        users.forEach(addUser);
+        users.forEach(user => addUser(user, true));
       }
     }
   }
 
   const values = [...byAccountId.values()];
-  const filtered = query ? values.filter(matchesQuery) : values;
+  const filtered = query
+    ? values.filter(user => matchedAccountIds.has(user.accountId))
+    : values;
 
   return filtered
     .sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || '')))
