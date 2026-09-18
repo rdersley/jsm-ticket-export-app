@@ -1,3 +1,3 @@
 Production release trigger — 2026-09-18
 
-Release reason: remove the remaining resolver-backed portal probe from the Retail in Motion production manifest so customers no longer see Atlassian's Allow access prompt. Preserve Export your requests, admin reporting, scheduler, private Weekly SD → Hardware and resolution-repair functionality unchanged while portal delivery is redesigned off-production.
+Release reason: restore a visible, consent-free Portal Reports box on the Retail in Motion portal after the previous production manifest removed the portal module entirely. Deploy fresh v8 portal subheader with static UI Kit content and no resolver, so customers see the Reports section without an Atlassian Allow access prompt. Keep admin reporting, scheduler, private Weekly SD → Hardware and resolution-repair functionality unchanged while dynamic portal delivery is redesigned.
