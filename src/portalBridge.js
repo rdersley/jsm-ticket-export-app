@@ -197,15 +197,13 @@ export async function trigger(request) {
       if (!reportId) throw new Error('Missing reportId.');
       await handlePortalAction('portal:latest-meta', { reportId }, context);
 
-      const host = headerValue(request?.headers, 'host');
-      const baseUrl = `https://${host}${request?.path || ''}`;
       const token = signDownload({
         accountId,
         portalId,
         reportId,
         exp: Date.now() + 10 * 60 * 1000
       }, secret);
-      return jsonResponse(200, { ok: true, data: { url: `${baseUrl}?download=${encodeURIComponent(token)}` } });
+      return jsonResponse(200, { ok: true, data: { token } });
     }
 
     const data = await handlePortalAction(input.action, input.payload || {}, context);
