@@ -1,3 +1,3 @@
 Production release trigger — 2026-09-18
 
-Release reason: restore the full dynamic Portal Reports experience as v11 now that all Jira REST calls used by report services and portal backend have been moved away from user context. Customer portal again uses the dedicated portal-customer resolver for report listing, published downloads and on-demand generation. Keep scheduler and all private Weekly SD → Hardware / resolution-repair functionality unchanged.
+Release reason: remove the JSM Portal Reports subheader from the live worksite because Atlassian Forge currently shows an unavoidable customer Allow access consent prompt whenever the resolver-backed portal module is used, despite unlicensedAccess and an asApp/KVS-only customer path. Keep the existing Export your requests experience, scheduler, admin reporting, and all private Weekly SD → Hardware / resolution-repair functionality unchanged.
