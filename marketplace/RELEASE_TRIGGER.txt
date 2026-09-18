@@ -1,11 +1,6 @@
-Production Portal Reports name picker hotfix — 2026-09-18
-
-Fix the selected portal user picker on retailinmotion.atlassian.net.
+Production Portal Reports button + auto-download polish — 2026-09-18
 
 Changes:
-- search customers across every selected service project;
-- include members of selected organisations;
-- merge Jira user picker and user search fallback results;
-- deduplicate by Atlassian account ID;
-- support Enter to search and show a clear match/no-match message;
-- preserve the working consent-free portal report visibility and signed Excel download flow.
+- replace blue-on-blue LinkButton with a proper primary Button for readable Download Excel text;
+- after Generate fresh report reaches ready, refresh the published report metadata and automatically open the signed download page;
+- preserve the working signed download flow, native UI Kit portal visibility, consent-free access, organisation checks and user picker fixes.
