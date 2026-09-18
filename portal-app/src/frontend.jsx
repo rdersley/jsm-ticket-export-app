@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import ForgeReconciler, { Button, Heading, Inline, LinkButton, Lozenge, Spinner, Stack, Text } from '@forge/react';
-import { invoke } from '@forge/bridge';
+import ForgeReconciler, { Button, Heading, Inline, Lozenge, Spinner, Stack, Text } from '@forge/react';
+import { invoke, router } from '@forge/bridge';
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -38,7 +38,13 @@ const PortalReports = () => {
         if (status?.state === 'ready') {
           setMessage(`${report.name} is ready${status.issueCount != null ? ` · ${status.issueCount} work items` : ''}.`);
           await invoke('portal:job-cleanup', { jobId }).catch(() => {});
-          await refresh();
+          const items = await invoke('portal:list', {}).catch(() => []);
+          setReports(Array.isArray(items) ? items : []);
+          const fresh = Array.isArray(items) ? items.find(item => item.id === report.id) : null;
+          if (fresh?.downloadUrl) {
+            setMessage(`${report.name} is ready${status.issueCount != null ? ` · ${status.issueCount} work items` : ''}. Starting download…`);
+            await router.open(fresh.downloadUrl);
+          }
           return;
         }
         if (status?.state === 'failed') throw new Error(status.message || 'Report generation failed.');
@@ -78,9 +84,9 @@ const PortalReports = () => {
 
           {report.allowDownload && report.latest && report.downloadUrl ? (
             <Inline space="space.100">
-              <LinkButton appearance="primary" href={report.downloadUrl} target="_blank">
+              <Button appearance="primary" onClick={() => router.open(report.downloadUrl)}>
                 Download Excel
-              </LinkButton>
+              </Button>
             </Inline>
           ) : null}
 
