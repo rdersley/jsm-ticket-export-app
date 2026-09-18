@@ -293,56 +293,77 @@ resolver.define('portal-admin:service-desks', async ({ context }) => {
 });
 resolver.define('portal-admin:customers', async ({ payload, context }) => {
   await requireAdmin(context);
-  const serviceDeskId = String(payload.serviceDeskId || '').trim();
+
   const query = String(payload.query || '').trim().toLowerCase();
-  if (!serviceDeskId) return [];
-
-  const customers = [];
-  let start = 0;
-  let jsmStatus = 200;
-  for (let page = 0; page < 20; page += 1) {
-    const response = await api.asApp().requestJira(
-      route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?start=${start}&limit=100`,
-      { headers: { Accept: 'application/json', 'X-ExperimentalApi': 'opt-in' } }
-    );
-    jsmStatus = response.status;
-    if (!response.ok) break;
-    const data = await response.json();
-    const values = data.values || [];
-    customers.push(...values);
-    if (data.isLastPage === true || values.length === 0) break;
-    start += values.length;
-  }
-
-  if (customers.length) {
-    const normalized = customers.map(user => ({
-      accountId: user.accountId,
-      displayName: user.displayName || user.name || user.emailAddress || user.accountId,
-      emailAddress: user.emailAddress || '',
-      active: user.active !== false
-    })).filter(user => user.accountId);
-    const filtered = query
-      ? normalized.filter(user => `${user.displayName} ${user.emailAddress} ${user.accountId}`.toLowerCase().includes(query))
-      : normalized;
-    return filtered.slice(0, 50);
-  }
-
-  if (!query) return [];
-  const pickerResponse = await api.asApp().requestJira(
-    route`/rest/api/3/user/picker?query=${query}&maxResults=50`,
-    { headers: { Accept: 'application/json' } }
+  const serviceDeskIds = cleanIds(
+    Array.isArray(payload.serviceDeskIds) && payload.serviceDeskIds.length
+      ? payload.serviceDeskIds
+      : [payload.serviceDeskId]
   );
-  if (!pickerResponse.ok) {
-    const detail = await pickerResponse.text().catch(() => '');
-    throw new Error(`Could not load portal customers (${jsmStatus}/${pickerResponse.status})${detail ? `: ${detail.slice(0, 180)}` : ''}`);
+
+  const byAccountId = new Map();
+
+  for (const serviceDeskId of serviceDeskIds) {
+    let start = 0;
+    for (let page = 0; page < 50; page += 1) {
+      const response = await api.asApp().requestJira(
+        route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?start=${start}&limit=100`,
+        { headers: { Accept: 'application/json', 'X-ExperimentalApi': 'opt-in' } }
+      );
+      if (!response.ok) break;
+
+      const data = await response.json();
+      const values = data.values || [];
+      for (const user of values) {
+        if (!user?.accountId) continue;
+        const normalized = {
+          accountId: String(user.accountId),
+          displayName: user.displayName || user.name || user.emailAddress || user.accountId,
+          emailAddress: user.emailAddress || '',
+          active: user.active !== false
+        };
+        byAccountId.set(normalized.accountId, normalized);
+      }
+
+      if (data.isLastPage === true || values.length === 0) break;
+      start += values.length;
+    }
   }
-  const picker = await pickerResponse.json();
-  return (picker.users || []).map(user => ({
-    accountId: user.accountId,
-    displayName: user.displayName || user.emailAddress || user.accountId,
-    emailAddress: user.emailAddress || '',
-    active: true
-  })).filter(user => user.accountId);
+
+  if (query) {
+    const pickerResponse = await api.asApp().requestJira(
+      route`/rest/api/3/user/picker?query=${query}&maxResults=100`,
+      { headers: { Accept: 'application/json' } }
+    );
+
+    if (pickerResponse.ok) {
+      const picker = await pickerResponse.json();
+      for (const user of picker.users || []) {
+        if (!user?.accountId) continue;
+        const normalized = {
+          accountId: String(user.accountId),
+          displayName: user.displayName || user.emailAddress || user.accountId,
+          emailAddress: user.emailAddress || '',
+          active: true
+        };
+        byAccountId.set(normalized.accountId, {
+          ...(byAccountId.get(normalized.accountId) || {}),
+          ...normalized
+        });
+      }
+    }
+  }
+
+  const values = [...byAccountId.values()];
+  const filtered = query
+    ? values.filter(user =>
+        `${user.displayName || ''} ${user.emailAddress || ''} ${user.accountId || ''}`
+          .toLowerCase()
+          .includes(query)
+      )
+    : values;
+
+  return filtered.slice(0, 100);
 });
 resolver.define('portal-admin:organizations', async ({ context }) => {
   await requireAdmin(context);
