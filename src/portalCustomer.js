@@ -126,6 +126,33 @@ async function cleanupJob(jobId, context) {
   return { ok: true };
 }
 
+export async function handlePortalAction(action, payload = {}, context = {}) {
+  switch (action) {
+    case 'portal:list':
+      return listPortalReports(context);
+    case 'portal:run':
+      return startJob(payload.reportId, context);
+    case 'portal:job-status':
+      return (await ownedJob(payload.jobId, context)) || { state: 'missing' };
+    case 'portal:job-cleanup':
+      return cleanupJob(payload.jobId, context);
+    case 'portal:latest-meta': {
+      const access = await isAllowed(payload.reportId, context);
+      if (!access.allowed || access.config.allowDownload === false) throw new Error('You do not have permission to download this report.');
+      return kvs.get(latestKey(payload.reportId));
+    }
+    case 'portal:latest-chunk': {
+      const access = await isAllowed(payload.reportId, context);
+      if (!access.allowed || access.config.allowDownload === false) throw new Error('You do not have permission to download this report.');
+      const chunk = await kvs.get(latestChunkKey(payload.reportId, Number(payload.index)));
+      if (typeof chunk !== 'string') throw new Error('Published report data is no longer available.');
+      return chunk;
+    }
+    default:
+      throw new Error('Unsupported portal action.');
+  }
+}
+
 resolver.define('portal:list', ({ context }) => listPortalReports(context));
 resolver.define('portal:run', ({ payload, context }) => startJob(payload.reportId, context));
 resolver.define('portal:job-status', async ({ payload, context }) => (await ownedJob(payload.jobId, context)) || { state: 'missing' });
