@@ -50,7 +50,9 @@ resolver.define('portal:list', async ({ context }) => {
     if (!report?.allowDownload || !report?.latest) return report;
     try {
       const link = await bridge('portal:download-link', { reportId: report.id }, context);
-      return { ...report, downloadUrl: link?.url || '' };
+      const bridgeUrl = String(process.env.PORTAL_BRIDGE_URL || '').trim();
+      const token = String(link?.token || '').trim();
+      return { ...report, downloadUrl: bridgeUrl && token ? `${bridgeUrl}?download=${encodeURIComponent(token)}` : '' };
     } catch {
       return report;
     }
