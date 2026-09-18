@@ -46,15 +46,6 @@ modules:
       tooltip: Export the current Jira search using a saved Excel template
       viewportSize: large
 
-  jiraServiceManagement:portalSubheader:
-    - key: nuvriqo-excel-portal-reports-v11
-      resource: portal-native-ui-v11
-      resolver:
-        function: portal-probe
-      render: native
-      unlicensedAccess:
-        - customer
-        - unlicensed
 
   scheduledTrigger:
     - key: report-dispatcher
@@ -81,8 +72,6 @@ modules:
       handler: portalReports.handler
     - key: portal-customer
       handler: portalCustomer.handler
-    - key: portal-probe
-      handler: portalProbe.handler
     - key: portal-worker
       handler: portalReports.portalWorker
       timeoutSeconds: 900
@@ -94,8 +83,6 @@ resources:
     path: static/hardware-ui/dist
   - key: navigator-ui
     path: static/navigator-ui/dist
-  - key: portal-native-ui-v11
-    path: src/frontend/portal-reports.jsx
   - key: portal-admin-ui
     path: static/portal-admin-ui/dist
 
