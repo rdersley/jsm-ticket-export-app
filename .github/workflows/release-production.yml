@@ -26,7 +26,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install dependencies
+      - name: Install main app dependencies
         run: npm install
 
       - name: Dependency security audit
@@ -41,16 +41,73 @@ jobs:
       - name: Configure Forge CLI
         run: forge settings set usage-analytics false
 
-      - name: Build Custom UI
+      - name: Build main app
         run: npm run build
 
-      - name: Forge lint
+      - name: Forge lint main app
         run: forge lint
 
-      - name: Deploy to Forge production
+      - name: Deploy Excel Report Manager production
         run: forge deploy -e production --approve MAJOR_VERSION_RULE --non-interactive
 
-      - name: Upgrade production installation on work Jira site
+      - name: Upgrade Excel Report Manager on work Jira site
+        shell: bash
+        run: |
+          forge install --upgrade --confirm-scopes --non-interactive --site retailinmotion.atlassian.net --product jira -e production || \
+          forge install --confirm-scopes --non-interactive --site retailinmotion.atlassian.net --product jira -e production
+
+      - name: Configure secure production Portal Reports bridge
+        id: bridge
+        shell: bash
+        run: |
+          TOKEN="$(openssl rand -hex 32)"
+          forge variables set --encrypt -e production PORTAL_BRIDGE_TOKEN "$TOKEN"
+          forge deploy -e production --approve MAJOR_VERSION_RULE --non-interactive
+
+          URL="$(forge webtrigger create -f portal-bridge -s retailinmotion.atlassian.net -p Jira -e production | grep -Eo 'https://[^ ]+' | tail -n 1)"
+          if [ -z "$URL" ]; then
+            echo "Could not obtain production Portal Reports bridge URL."
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$URL"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Verify production bridge
+        shell: bash
+        run: |
+          curl -fsS -X POST "${{ steps.bridge.outputs.url }}" \
+            -H "Authorization: Bearer ${{ steps.bridge.outputs.token }}" \
+            -H "Content-Type: application/json" \
+            --data '{"action":"ping"}' | grep -q '"ok":true'
+
+      - name: Install Portal Reports dependencies
+        working-directory: portal-app
+        run: npm install
+
+      - name: Configure Portal Reports production bridge
+        working-directory: portal-app
+        shell: bash
+        run: |
+          forge variables set --encrypt -e production PORTAL_BRIDGE_TOKEN "${{ steps.bridge.outputs.token }}"
+          forge variables set --encrypt -e production PORTAL_BRIDGE_URL "${{ steps.bridge.outputs.url }}"
+
+      - name: Test Portal Reports app
+        working-directory: portal-app
+        run: npm test
+
+      - name: Lint Portal Reports app
+        working-directory: portal-app
+        continue-on-error: true
+        run: forge lint
+
+      - name: Deploy Portal Reports production
+        working-directory: portal-app
+        run: forge deploy -e production --approve MAJOR_VERSION_RULE --non-interactive
+
+      - name: Install or upgrade Portal Reports on work Jira site
+        working-directory: portal-app
         shell: bash
         run: |
           forge install --upgrade --confirm-scopes --non-interactive --site retailinmotion.atlassian.net --product jira -e production || \
