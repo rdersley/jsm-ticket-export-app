@@ -1,3 +1,5 @@
 Production release trigger — 2026-09-18
 
-Release reason: restore a visible, consent-free Portal Reports box on the Retail in Motion portal after the previous production manifest removed the portal module entirely. Deploy fresh v8 portal subheader with static UI Kit content and no resolver, so customers see the Reports section without an Atlassian Allow access prompt. Keep admin reporting, scheduler, private Weekly SD → Hardware and resolution-repair functionality unchanged while dynamic portal delivery is redesigned.
+Release reason: deploy the consent-free split Portal Reports architecture to retailinmotion.atlassian.net after successful development validation. Keep Excel Report Manager, scheduler, saved reports, private Weekly SD → Hardware and Resolution Repair tooling in the main app. Remove the customer portal module from the scoped main app, add the authenticated report bridge, and install the separate storage-only Nuvriqo Portal Reports app for customer listing, generation and XLSX download.
+
+Development validation completed successfully: report generation reached ready state and the published workbook was retrieved through the bridge and verified as a valid XLSX archive.
