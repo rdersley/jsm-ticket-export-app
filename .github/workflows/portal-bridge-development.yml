@@ -116,10 +116,11 @@ jobs:
       - name: Generate development Portal Reports smoke test
         shell: bash
         run: |
-          START="$(curl -fsS -X POST "${{ steps.bridge.outputs.url }}" \
+          START="$(curl -sS -X POST "${{ steps.bridge.outputs.url }}" \
             -H "Authorization: Bearer ${{ steps.bridge.outputs.token }}" \
             -H "Content-Type: application/json" \
             --data '{"action":"portal:run","accountId":"portal-ci-smoke","payload":{"reportId":"dev-portal-smoke-report"}}')"
+          echo "Start response: $START"
           JOB_ID="$(printf '%s' "$START" | jq -r '.data.jobId // empty')"
           if [ -z "$JOB_ID" ]; then
             echo "Portal smoke report did not return a job id."
