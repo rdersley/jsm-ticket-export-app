@@ -102,13 +102,9 @@ resources:
 permissions:
   scopes:
     - read:jira-work
-    - read:field:jira
-    - read:filter:jira
+    - read:jira-user
     - read:servicedesk-request
-    - read:organization:jira-service-management
-    - read:organization.user:jira-service-management
-    - read:servicedesk.customer:jira-service-management
-    - read:user:jira
+    - manage:servicedesk-customer
     - storage:app
   external:
     fetch:
