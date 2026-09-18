@@ -53,7 +53,7 @@ const FALLBACK_FIELDS = [
 
 export async function listFields() {
   return withTimeout((async () => {
-    const response = await api.asUser().requestJira(route`/rest/api/3/field`);
+    const response = await api.asApp().requestJira(route`/rest/api/3/field`);
     const fields = await jsonOrThrow(response, 'Loading Jira fields');
     return fields
       .filter(f => f.id && f.name)
@@ -64,7 +64,7 @@ export async function listFields() {
 
 export async function listFilters() {
   return withTimeout((async () => {
-    const response = await api.asUser().requestJira(route`/rest/api/3/filter/search?expand=jql&maxResults=100`);
+    const response = await api.asApp().requestJira(route`/rest/api/3/filter/search?expand=jql&maxResults=100`);
     const data = await jsonOrThrow(response, 'Loading saved filters');
     return (data.values || []).map(f => ({ id: String(f.id), name: f.name, jql: f.jql || '', favourite: Boolean(f.favourite) }));
   })(), 8000, []);
