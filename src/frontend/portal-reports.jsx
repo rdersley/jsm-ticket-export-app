@@ -1,22 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import ForgeReconciler, { Heading, Spinner, Stack, Text } from '@forge/react';
-import { invoke } from '@forge/bridge';
+import React from 'react';
+import ForgeReconciler, { Heading, Stack, Text } from '@forge/react';
 
-const PortalProbe = () => {
-  const [state, setState] = useState({ loading: true, message: '' });
+const PortalReports = () => (
+  <Stack space="space.100">
+    <Heading size="small">Reports</Heading>
+    <Text>Portal Reports are temporarily in read-only mode while secure customer report delivery is being finalised.</Text>
+  </Stack>
+);
 
-  useEffect(() => {
-    invoke('probe', {})
-      .then(result => setState({ loading: false, message: result?.message || 'Backend resolver connected.' }))
-      .catch(error => setState({ loading: false, message: error?.message || String(error) }));
-  }, []);
-
-  return (
-    <Stack space="space.100">
-      <Heading size="small">Reports</Heading>
-      {state.loading ? <Spinner /> : <Text>{state.message}</Text>}
-    </Stack>
-  );
-};
-
-ForgeReconciler.render(<PortalProbe />);
+ForgeReconciler.render(<PortalReports />);
