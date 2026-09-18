@@ -1,3 +1,3 @@
 Production release trigger — 2026-09-18
 
-Release reason: isolate the remaining JSM customer Allow access prompt. Deploy a fresh v6 portal subheader with no resolver and static UI Kit content. This proves whether the consent prompt is caused by resolver invocation versus the portal module/app installation itself. Keep scheduler and all private Weekly SD → Hardware and resolution-repair functionality unchanged.
+Release reason: restore the full dynamic Portal Reports experience as v7 after the resolver-free diagnostic proved the portal module itself is healthy. Customer portal uses the dedicated portal-customer resolver, React 18 UI Kit runtime, report listing, published download and on-demand generation. Keep scheduler and private Weekly SD → Hardware / resolution-repair functionality unchanged.
