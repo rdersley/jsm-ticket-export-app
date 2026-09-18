@@ -1,3 +1,3 @@
 Production release trigger — 2026-09-18
 
-Release reason: run a minimal v9 resolver-backed portal probe. The frontend invokes only a dedicated resolver that returns static data and imports no Jira API, KVS, queue, report store or admin code. This isolates whether the customer Allow access prompt is caused by resolver attachment itself or by one of the dependencies used by the full Portal Reports resolver. Keep scheduler, admin Portal Reports and all private Weekly SD → Hardware / resolution-repair functionality unchanged.
+Release reason: remove the customer-facing Portal Reports module from the worksite production manifest after the minimal v9 probe proved that attaching any Forge resolver to this portal module triggers Atlassian's customer Allow access prompt. This restores a clean customer portal while a consent-free delivery architecture is built separately. Keep scheduler, admin Portal Reports, Weekly SD → Hardware and resolution-repair functionality unchanged.
