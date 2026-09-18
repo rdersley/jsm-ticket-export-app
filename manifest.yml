@@ -47,10 +47,8 @@ modules:
       viewportSize: large
 
   jiraServiceManagement:portalSubheader:
-    - key: nuvriqo-excel-portal-reports-v5
-      resource: portal-native-ui-v5
-      resolver:
-        function: portal-customer
+    - key: nuvriqo-excel-portal-reports-v6
+      resource: portal-native-ui-v6
       render: native
       unlicensedAccess:
         - customer
@@ -92,7 +90,7 @@ resources:
     path: static/hardware-ui/dist
   - key: navigator-ui
     path: static/navigator-ui/dist
-  - key: portal-native-ui-v5
+  - key: portal-native-ui-v6
     path: src/frontend/portal-reports.jsx
   - key: portal-admin-ui
     path: static/portal-admin-ui/dist
