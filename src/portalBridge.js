@@ -19,7 +19,7 @@ async function seedDevelopmentReport() {
     name: 'Portal Reports Smoke Test',
     description: 'Development-only report used to verify portal listing, generation and download.',
     enabled: false,
-    source: { type: 'jql', jql: 'ORDER BY created DESC', filterId: null, maxIssues: 10 },
+    source: { type: 'jql', jql: 'created >= -30d ORDER BY created DESC', filterId: null, maxIssues: 10 },
     template: {
       columns: [
         { fieldId: 'key', label: 'Key', width: 14 },
