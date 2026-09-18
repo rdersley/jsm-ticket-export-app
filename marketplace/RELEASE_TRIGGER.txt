@@ -1,3 +1,3 @@
 Production release trigger — 2026-09-18
 
-Release reason: remove the remaining Jira user-context API calls that were causing JSM portal customers to see the Atlassian "Allow access" consent screen. All report and Portal Reports Jira REST calls now use app context, while admin checks use the bulk permissions endpoint against the current account ID. Portal module bumped to v8 to force a clean reload. Keep scheduler and all private Weekly SD → Hardware and resolution-repair functionality unchanged.
+Release reason: restore the full dynamic Portal Reports experience as v11 now that all Jira REST calls used by report services and portal backend have been moved away from user context. Customer portal again uses the dedicated portal-customer resolver for report listing, published downloads and on-demand generation. Keep scheduler and all private Weekly SD → Hardware / resolution-repair functionality unchanged.
