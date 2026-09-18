@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feature/portal-reports
     paths-ignore:
       - 'portal-app/**'
       - '.github/workflows/portal-app-development.yml'
