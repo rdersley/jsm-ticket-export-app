@@ -112,3 +112,37 @@ jobs:
             -H "Authorization: Bearer ${{ steps.bridge.outputs.token }}" \
             -H "Content-Type: application/json" \
             --data '{"action":"seed-dev-report"}'
+
+      - name: Generate development Portal Reports smoke test
+        shell: bash
+        run: |
+          START="$(curl -fsS -X POST "${{ steps.bridge.outputs.url }}" \
+            -H "Authorization: Bearer ${{ steps.bridge.outputs.token }}" \
+            -H "Content-Type: application/json" \
+            --data '{"action":"portal:run","accountId":"portal-ci-smoke","payload":{"reportId":"dev-portal-smoke-report"}}')"
+          JOB_ID="$(printf '%s' "$START" | jq -r '.data.jobId // empty')"
+          if [ -z "$JOB_ID" ]; then
+            echo "Portal smoke report did not return a job id."
+            echo "$START"
+            exit 1
+          fi
+
+          for i in $(seq 1 90); do
+            STATUS="$(curl -fsS -X POST "${{ steps.bridge.outputs.url }}" \
+              -H "Authorization: Bearer ${{ steps.bridge.outputs.token }}" \
+              -H "Content-Type: application/json" \
+              --data "$(jq -nc --arg id "$JOB_ID" '{action:"portal:job-status",accountId:"portal-ci-smoke",payload:{jobId:$id}}')")"
+            STATE="$(printf '%s' "$STATUS" | jq -r '.data.state // empty')"
+            if [ "$STATE" = "ready" ]; then
+              echo "Portal smoke report generated successfully."
+              exit 0
+            fi
+            if [ "$STATE" = "failed" ]; then
+              echo "$STATUS"
+              exit 1
+            fi
+            sleep 2
+          done
+
+          echo "Portal smoke report generation timed out."
+          exit 1
