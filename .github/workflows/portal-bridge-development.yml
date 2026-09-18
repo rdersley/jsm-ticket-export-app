@@ -147,3 +147,30 @@ jobs:
 
           echo "Portal smoke report generation timed out."
           exit 1
+
+      - name: Validate published Portal Reports workbook
+        shell: bash
+        run: |
+          META="$(curl -fsS -X POST "${{ steps.bridge.outputs.url }}" \
+            -H "Authorization: Bearer ${{ steps.bridge.outputs.token }}" \
+            -H "Content-Type: application/json" \
+            --data '{"action":"portal:latest-meta","accountId":"portal-ci-smoke","payload":{"reportId":"dev-portal-smoke-report"}}')"
+          CHUNK_COUNT="$(printf '%s' "$META" | jq -r '.data.chunkCount // 0')"
+          if [ "$CHUNK_COUNT" -lt 1 ]; then
+            echo "Published report has no chunks."
+            echo "$META"
+            exit 1
+          fi
+
+          : > /tmp/report.b64
+          for i in $(seq 0 $((CHUNK_COUNT - 1))); do
+            PART="$(curl -fsS -X POST "${{ steps.bridge.outputs.url }}" \
+              -H "Authorization: Bearer ${{ steps.bridge.outputs.token }}" \
+              -H "Content-Type: application/json" \
+              --data "$(jq -nc --argjson idx "$i" '{action:"portal:latest-chunk",accountId:"portal-ci-smoke",payload:{reportId:"dev-portal-smoke-report",index:$idx}}')")"
+            printf '%s' "$PART" | jq -r '.data' >> /tmp/report.b64
+          done
+
+          base64 --decode /tmp/report.b64 > /tmp/portal-report.xlsx
+          unzip -t /tmp/portal-report.xlsx
+          echo "Published Portal Reports workbook is a valid XLSX."
