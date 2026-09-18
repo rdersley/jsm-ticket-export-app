@@ -76,7 +76,10 @@ function App(){
       {cfg.accessMode==='selected'&&<>
         <h2>Selected portal users</h2><div className="searchRow"><input value={customerQuery} onChange={e=>setCustomerQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();searchCustomers()}}} placeholder="Search name or email"/><button disabled={busy} onClick={searchCustomers}>Search</button></div>
         {!!selectedUsers.length&&<div className="chips">{selectedUsers.map(id=>{const u=knownUsers[id];return <span key={id}>{u?.displayName||u?.emailAddress||id}<button onClick={()=>toggleId('userAccountIds',id)}>×</button></span>})}</div>}
-        {!!customerResults.length&&<div className="results">{customerResults.map(u=><div key={u.accountId||u.name}><div><strong>{u.displayName||u.name}</strong><small>{u.emailAddress||u.email||u.accountId}</small></div><button disabled={selectedUsers.includes(String(u.accountId))} onClick={()=>toggleId('userAccountIds',u.accountId)}>Add</button></div>)}</div>}
+        {!!customerResults.length&&<div className="results">{customerResults.map(u=>{
+  const secondary=u.emailAddress||u.email||'Portal customer';
+  return <div key={u.accountId||u.name}><div><strong>{u.displayName||u.name||'Portal customer'}</strong><small>{secondary}</small></div><button disabled={selectedUsers.includes(String(u.accountId))} onClick={()=>toggleId('userAccountIds',u.accountId)}>Add</button></div>
+})}</div>}
         <h2>Selected organisations</h2><div className="options">{organizations.map(o=><label key={o.id}><input type="checkbox" checked={selectedOrgs.includes(String(o.id))} onChange={()=>toggleId('organizationIds',o.id)}/><span>{o.name}</span></label>)}</div>
       </>}
       <div className="info">Portal users must be signed in. Restricted reports are checked against the customer's Atlassian account and JSM organisation memberships before they are listed, generated or downloaded.</div>
