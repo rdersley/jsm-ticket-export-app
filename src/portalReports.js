@@ -48,7 +48,7 @@ async function expandOrganizationAccounts(organizationIds) {
   for (const organizationId of cleanIds(organizationIds)) {
     let start = 0;
     for (let page = 0; page < 100; page += 1) {
-      const response = await api.asUser().requestJira(
+      const response = await api.asApp().requestJira(
         route`/rest/servicedeskapi/organization/${organizationId}/user?start=${start}&limit=100`,
         { headers: { Accept: 'application/json' } }
       );
@@ -94,13 +94,17 @@ function portalIdFrom(context) {
   return match?.[1] || '';
 }
 
-async function requireAdmin() {
-  const response = await api.asUser().requestJira(route`/rest/api/3/mypermissions?permissions=ADMINISTER`, {
-    headers: { Accept: 'application/json' }
+async function requireAdmin(context) {
+  const accountId = String(context?.accountId || '').trim();
+  if (!accountId) throw new Error('Jira administrator permission is required.');
+  const response = await api.asApp().requestJira(route`/rest/api/3/permissions/check`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accountId, globalPermissions: ['ADMINISTER'] })
   });
   if (!response.ok) throw new Error('Jira administrator permission is required.');
   const data = await response.json();
-  if (!data?.permissions?.ADMINISTER?.havePermission) throw new Error('Jira administrator permission is required.');
+  if (!(data?.globalPermissions || []).includes('ADMINISTER')) throw new Error('Jira administrator permission is required.');
 }
 
 async function isAllowed(reportId, context) {
@@ -278,17 +282,17 @@ export async function portalWorker(event) {
   }
 }
 
-resolver.define('portal-admin:list', async () => { await requireAdmin(); return listAdminReports(); });
-resolver.define('portal-admin:save', async ({ payload }) => { await requireAdmin(); return saveConfig(payload.reportId, payload.config); });
-resolver.define('portal-admin:publish', async ({ payload, context }) => { await requireAdmin(); return startJob(payload.reportId, context, true); });
-resolver.define('portal-admin:service-desks', async () => {
-  await requireAdmin();
-  const response = await api.asUser().requestJira(route`/rest/servicedeskapi/servicedesk?limit=100`, { headers: { Accept: 'application/json' } });
+resolver.define('portal-admin:list', async ({ context }) => { await requireAdmin(context); return listAdminReports(); });
+resolver.define('portal-admin:save', async ({ payload, context }) => { await requireAdmin(context); return saveConfig(payload.reportId, payload.config); });
+resolver.define('portal-admin:publish', async ({ payload, context }) => { await requireAdmin(context); return startJob(payload.reportId, context, true); });
+resolver.define('portal-admin:service-desks', async ({ context }) => {
+  await requireAdmin(context);
+  const response = await api.asApp().requestJira(route`/rest/servicedeskapi/servicedesk?limit=100`, { headers: { Accept: 'application/json' } });
   if (!response.ok) throw new Error('Could not load service projects.');
   return (await response.json()).values || [];
 });
-resolver.define('portal-admin:customers', async ({ payload }) => {
-  await requireAdmin();
+resolver.define('portal-admin:customers', async ({ payload, context }) => {
+  await requireAdmin(context);
   const serviceDeskId = String(payload.serviceDeskId || '').trim();
   const query = String(payload.query || '').trim().toLowerCase();
   if (!serviceDeskId) return [];
@@ -297,7 +301,7 @@ resolver.define('portal-admin:customers', async ({ payload }) => {
   let start = 0;
   let jsmStatus = 200;
   for (let page = 0; page < 20; page += 1) {
-    const response = await api.asUser().requestJira(
+    const response = await api.asApp().requestJira(
       route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?start=${start}&limit=100`,
       { headers: { Accept: 'application/json', 'X-ExperimentalApi': 'opt-in' } }
     );
@@ -324,7 +328,7 @@ resolver.define('portal-admin:customers', async ({ payload }) => {
   }
 
   if (!query) return [];
-  const pickerResponse = await api.asUser().requestJira(
+  const pickerResponse = await api.asApp().requestJira(
     route`/rest/api/3/user/picker?query=${query}&maxResults=50`,
     { headers: { Accept: 'application/json' } }
   );
@@ -340,14 +344,14 @@ resolver.define('portal-admin:customers', async ({ payload }) => {
     active: true
   })).filter(user => user.accountId);
 });
-resolver.define('portal-admin:organizations', async () => {
-  await requireAdmin();
-  const response = await api.asUser().requestJira(route`/rest/servicedeskapi/organization?limit=100`, { headers: { Accept: 'application/json' } });
+resolver.define('portal-admin:organizations', async ({ context }) => {
+  await requireAdmin(context);
+  const response = await api.asApp().requestJira(route`/rest/servicedeskapi/organization?limit=100`, { headers: { Accept: 'application/json' } });
   if (!response.ok) throw new Error('Could not load organizations.');
   return (await response.json()).values || [];
 });
-resolver.define('portal-admin:job-status', async ({ payload, context }) => { await requireAdmin(); return (await ownedJob(payload.jobId, context)) || { state: 'missing' }; });
-resolver.define('portal-admin:job-cleanup', async ({ payload, context }) => { await requireAdmin(); return cleanupJob(payload.jobId, context); });
+resolver.define('portal-admin:job-status', async ({ payload, context }) => { await requireAdmin(context); return (await ownedJob(payload.jobId, context)) || { state: 'missing' }; });
+resolver.define('portal-admin:job-cleanup', async ({ payload, context }) => { await requireAdmin(context); return cleanupJob(payload.jobId, context); });
 
 resolver.define('portal:list', ({ context }) => listPortalReports(context));
 resolver.define('portal:run', ({ payload, context }) => startJob(payload.reportId, context, false));
