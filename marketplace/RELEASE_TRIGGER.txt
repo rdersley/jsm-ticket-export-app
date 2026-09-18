@@ -1,9 +1,11 @@
-Production Portal Reports download link hotfix — 2026-09-18
+Production Portal Reports name picker hotfix — 2026-09-18
 
-Fix the signed download URL construction on retailinmotion.atlassian.net.
+Fix the selected portal user picker on retailinmotion.atlassian.net.
 
 Changes:
-- main report engine now returns only a short-lived signed token;
-- lightweight Portal Reports app combines that token with its exact configured production bridge URL;
-- removes host/path reconstruction from the webtrigger request;
-- preserves native UI Kit visibility, consent-free portal access, organisation checks, user search and private Retail in Motion tooling.
+- search customers across every selected service project;
+- include members of selected organisations;
+- merge Jira user picker and user search fallback results;
+- deduplicate by Atlassian account ID;
+- support Enter to search and show a clear match/no-match message;
+- preserve the working consent-free portal report visibility and signed Excel download flow.
