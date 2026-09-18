@@ -102,3 +102,13 @@ jobs:
         run: |
           forge install --upgrade --confirm-scopes --non-interactive --site nuvriqo.atlassian.net --product jira -e development || \
           forge install --confirm-scopes --non-interactive --site nuvriqo.atlassian.net --product jira -e development
+
+      - name: Seed development Portal Reports smoke test
+        shell: bash
+        run: |
+          forge variables set --encrypt -e development PORTAL_DEV_SEED_ENABLED true
+          forge deploy -e development --approve MAJOR_VERSION_RULE --non-interactive
+          curl -fsS -X POST "${{ steps.bridge.outputs.url }}" \
+            -H "Authorization: Bearer ${{ steps.bridge.outputs.token }}" \
+            -H "Content-Type: application/json" \
+            --data '{"action":"seed-dev-report"}'
