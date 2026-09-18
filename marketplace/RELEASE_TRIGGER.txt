@@ -1,9 +1,9 @@
-Production Portal Reports restore + download fix — 2026-09-18
+Production Portal Reports download link hotfix — 2026-09-18
 
-Restore the proven native UI Kit Portal Reports module on retailinmotion.atlassian.net after the Custom UI regression hid the module.
+Fix the signed download URL construction on retailinmotion.atlassian.net.
 
-Download fix:
-- keep native UI Kit for visibility and consent-free portal rendering;
-- replace FileCard Blob download with a short-lived signed Forge browser download link;
-- download page retrieves published workbook chunks securely and triggers a normal browser .xlsx download;
-- preserve organisation access fixes, portal user search fixes, generation, saved reports, scheduler and private Retail in Motion tooling.
+Changes:
+- main report engine now returns only a short-lived signed token;
+- lightweight Portal Reports app combines that token with its exact configured production bridge URL;
+- removes host/path reconstruction from the webtrigger request;
+- preserves native UI Kit visibility, consent-free portal access, organisation checks, user search and private Retail in Motion tooling.
