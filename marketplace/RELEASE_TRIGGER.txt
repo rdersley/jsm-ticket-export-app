@@ -1,3 +1,3 @@
-Production release trigger — 2026-09-17
+Production release trigger — 2026-09-18
 
-Release reason: retry consent-free Portal Reports release after fixing Forge's 23-character function-key limit. Customer portal now uses the short `portal-customer` resolver key, still backed only by KVS/queues and no api.asUser Jira calls. Keep admin Portal Reports, scheduler, and all private Weekly SD → Hardware and resolution-repair functionality unchanged.
+Release reason: isolate the remaining JSM customer Allow access prompt. Deploy a fresh v6 portal subheader with no resolver and static UI Kit content. This proves whether the consent prompt is caused by resolver invocation versus the portal module/app installation itself. Keep scheduler and all private Weekly SD → Hardware and resolution-repair functionality unchanged.
