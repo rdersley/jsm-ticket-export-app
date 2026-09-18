@@ -294,21 +294,39 @@ resolver.define('portal-admin:service-desks', async ({ context }) => {
 resolver.define('portal-admin:customers', async ({ payload, context }) => {
   await requireAdmin(context);
 
-  const query = String(payload.query || '').trim().toLowerCase();
+  const queryRaw = String(payload.query || '').trim();
+  const query = queryRaw.toLowerCase();
   const serviceDeskIds = cleanIds(
     Array.isArray(payload.serviceDeskIds) && payload.serviceDeskIds.length
       ? payload.serviceDeskIds
       : [payload.serviceDeskId]
   );
+  const organizationIds = cleanIds(payload.organizationIds);
 
   const byAccountId = new Map();
 
+  const addUser = user => {
+    const accountId = String(user?.accountId || '').trim();
+    if (!accountId) return;
+    const normalized = {
+      accountId,
+      displayName: user.displayName || user.name || user.emailAddress || user.email || accountId,
+      emailAddress: user.emailAddress || user.email || '',
+      active: user.active !== false
+    };
+    byAccountId.set(accountId, {
+      ...(byAccountId.get(accountId) || {}),
+      ...normalized
+    });
+  };
+
+  // 1) Search customers in every selected service project using the JSM customer API.
   for (const serviceDeskId of serviceDeskIds) {
     let start = 0;
-    for (let page = 0; page < 50; page += 1) {
+    for (let page = 0; page < 20; page += 1) {
       const response = await api.asApp().requestJira(
-        query
-          ? route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?query=${query}&start=${start}&limit=100`
+        queryRaw
+          ? route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?query=${queryRaw}&start=${start}&limit=100`
           : route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?start=${start}&limit=100`,
         { headers: { Accept: 'application/json', 'X-ExperimentalApi': 'opt-in' } }
       );
@@ -316,43 +334,45 @@ resolver.define('portal-admin:customers', async ({ payload, context }) => {
 
       const data = await response.json();
       const values = data.values || [];
-      for (const user of values) {
-        if (!user?.accountId) continue;
-        const normalized = {
-          accountId: String(user.accountId),
-          displayName: user.displayName || user.name || user.emailAddress || user.accountId,
-          emailAddress: user.emailAddress || '',
-          active: user.active !== false
-        };
-        byAccountId.set(normalized.accountId, normalized);
-      }
+      values.forEach(addUser);
 
       if (data.isLastPage === true || values.length === 0) break;
       start += values.length;
     }
   }
 
-  if (query) {
-    const pickerResponse = await api.asApp().requestJira(
-      route`/rest/api/3/user/picker?query=${query}&maxResults=100`,
-      { headers: { Accept: 'application/json' } }
-    );
+  // 2) Include members of selected organisations. This catches portal customers
+  // who are organisation members but are not returned by a service-project picker.
+  for (const organizationId of organizationIds) {
+    let start = 0;
+    for (let page = 0; page < 50; page += 1) {
+      const response = await api.asApp().requestJira(
+        route`/rest/servicedeskapi/organization/${organizationId}/user?start=${start}&limit=100`,
+        { headers: { Accept: 'application/json' } }
+      );
+      if (!response.ok) break;
 
-    if (pickerResponse.ok) {
-      const picker = await pickerResponse.json();
-      for (const user of picker.users || []) {
-        if (!user?.accountId) continue;
-        const normalized = {
-          accountId: String(user.accountId),
-          displayName: user.displayName || user.emailAddress || user.accountId,
-          emailAddress: user.emailAddress || '',
-          active: true
-        };
-        byAccountId.set(normalized.accountId, {
-          ...(byAccountId.get(normalized.accountId) || {}),
-          ...normalized
-        });
-      }
+      const data = await response.json();
+      const values = data.values || [];
+      values.forEach(addUser);
+
+      if (data.isLastPage === true || values.length === 0) break;
+      start += values.length;
+    }
+  }
+
+  // 3) Jira user-search fallbacks. Useful for licensed users and customers that
+  // Atlassian does not surface from the service-project customer endpoint.
+  if (queryRaw) {
+    for (const endpoint of [
+      route`/rest/api/3/user/picker?query=${queryRaw}&maxResults=100`,
+      route`/rest/api/3/user/search?query=${queryRaw}&maxResults=100`
+    ]) {
+      const response = await api.asApp().requestJira(endpoint, { headers: { Accept: 'application/json' } });
+      if (!response.ok) continue;
+      const data = await response.json();
+      const users = Array.isArray(data) ? data : (data.users || []);
+      users.forEach(addUser);
     }
   }
 
@@ -365,7 +385,9 @@ resolver.define('portal-admin:customers', async ({ payload, context }) => {
       )
     : values;
 
-  return filtered.slice(0, 100);
+  return filtered
+    .sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || '')))
+    .slice(0, 100);
 });
 resolver.define('portal-admin:organizations', async ({ context }) => {
   await requireAdmin(context);
