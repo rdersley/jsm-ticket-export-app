@@ -296,13 +296,12 @@ resolver.define('portal-admin:customers', async ({ payload, context }) => {
 
   const queryRaw = String(payload.query || '').trim();
   const query = queryRaw.toLowerCase();
-  const serviceDeskIds = cleanIds(
+  const selectedServiceDeskIds = cleanIds(
     Array.isArray(payload.serviceDeskIds) && payload.serviceDeskIds.length
       ? payload.serviceDeskIds
       : [payload.serviceDeskId]
   );
   const organizationIds = cleanIds(payload.organizationIds);
-
   const byAccountId = new Map();
 
   const addUser = user => {
@@ -320,29 +319,68 @@ resolver.define('portal-admin:customers', async ({ payload, context }) => {
     });
   };
 
-  // 1) Search customers in every selected service project using the JSM customer API.
-  for (const serviceDeskId of serviceDeskIds) {
-    let start = 0;
-    for (let page = 0; page < 20; page += 1) {
-      const response = await api.asApp().requestJira(
-        queryRaw
-          ? route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?query=${queryRaw}&start=${start}&limit=100`
-          : route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?start=${start}&limit=100`,
-        { headers: { Accept: 'application/json', 'X-ExperimentalApi': 'opt-in' } }
-      );
-      if (!response.ok) break;
+  const matchesQuery = user => {
+    if (!query) return true;
+    return `${user?.displayName || ''} ${user?.name || ''} ${user?.emailAddress || ''} ${user?.email || ''} ${user?.accountId || ''}`
+      .toLowerCase()
+      .includes(query);
+  };
 
-      const data = await response.json();
-      const values = data.values || [];
-      values.forEach(addUser);
+  const searchTerms = cleanIds([
+    queryRaw,
+    queryRaw.includes('@') ? queryRaw.split('@')[0] : ''
+  ]);
 
-      if (data.isLastPage === true || values.length === 0) break;
-      start += values.length;
+  const searchDesk = async serviceDeskId => {
+    if (!serviceDeskId) return;
+    const terms = searchTerms.length ? searchTerms : [''];
+
+    for (const term of terms) {
+      let start = 0;
+      for (let page = 0; page < 20; page += 1) {
+        const response = await api.asApp().requestJira(
+          term
+            ? route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?query=${term}&start=${start}&limit=100`
+            : route`/rest/servicedeskapi/servicedesk/${serviceDeskId}/customer?start=${start}&limit=100`,
+          { headers: { Accept: 'application/json', 'X-ExperimentalApi': 'opt-in' } }
+        );
+        if (!response.ok) break;
+
+        const data = await response.json();
+        const values = data.values || [];
+        values.forEach(addUser);
+
+        if (data.isLastPage === true || values.length === 0) break;
+        start += values.length;
+      }
+    }
+  };
+
+  // Search selected service projects first.
+  for (const serviceDeskId of selectedServiceDeskIds) {
+    await searchDesk(serviceDeskId);
+  }
+
+  // If nothing matched, expand to every JSM service project on the site.
+  // This catches portal customers who exist on the site but are not attached
+  // to the first selected project returned by Atlassian's customer endpoint.
+  if (queryRaw && ![...byAccountId.values()].some(matchesQuery)) {
+    const desksResponse = await api.asApp().requestJira(
+      route`/rest/servicedeskapi/servicedesk?limit=100`,
+      { headers: { Accept: 'application/json' } }
+    );
+    if (desksResponse.ok) {
+      const desks = (await desksResponse.json()).values || [];
+      for (const desk of desks) {
+        const id = String(desk?.id || '').trim();
+        if (!id || selectedServiceDeskIds.includes(id)) continue;
+        await searchDesk(id);
+        if ([...byAccountId.values()].some(matchesQuery)) break;
+      }
     }
   }
 
-  // 2) Include members of selected organisations. This catches portal customers
-  // who are organisation members but are not returned by a service-project picker.
+  // Include selected organisation members.
   for (const organizationId of organizationIds) {
     let start = 0;
     for (let page = 0; page < 50; page += 1) {
@@ -361,29 +399,24 @@ resolver.define('portal-admin:customers', async ({ payload, context }) => {
     }
   }
 
-  // 3) Jira user-search fallbacks. Useful for licensed users and customers that
-  // Atlassian does not surface from the service-project customer endpoint.
+  // Jira user search fallbacks for licensed users / accounts Jira exposes there.
   if (queryRaw) {
-    for (const endpoint of [
-      route`/rest/api/3/user/picker?query=${queryRaw}&maxResults=100`,
-      route`/rest/api/3/user/search?query=${queryRaw}&maxResults=100`
-    ]) {
-      const response = await api.asApp().requestJira(endpoint, { headers: { Accept: 'application/json' } });
-      if (!response.ok) continue;
-      const data = await response.json();
-      const users = Array.isArray(data) ? data : (data.users || []);
-      users.forEach(addUser);
+    for (const term of searchTerms) {
+      for (const endpoint of [
+        route`/rest/api/3/user/picker?query=${term}&maxResults=100`,
+        route`/rest/api/3/user/search?query=${term}&maxResults=100`
+      ]) {
+        const response = await api.asApp().requestJira(endpoint, { headers: { Accept: 'application/json' } });
+        if (!response.ok) continue;
+        const data = await response.json();
+        const users = Array.isArray(data) ? data : (data.users || []);
+        users.forEach(addUser);
+      }
     }
   }
 
   const values = [...byAccountId.values()];
-  const filtered = query
-    ? values.filter(user =>
-        `${user.displayName || ''} ${user.emailAddress || ''} ${user.accountId || ''}`
-          .toLowerCase()
-          .includes(query)
-      )
-    : values;
+  const filtered = query ? values.filter(matchesQuery) : values;
 
   return filtered
     .sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || '')))
