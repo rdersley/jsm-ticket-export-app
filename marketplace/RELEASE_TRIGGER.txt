@@ -1,9 +1,8 @@
-Production hotfix trigger — 2026-09-18
+Production download hotfix trigger — 2026-09-18
 
-Fix Portal Reports access filtering and portal user search on retailinmotion.atlassian.net.
+Fix live Portal Reports download on retailinmotion.atlassian.net.
 
 Changes:
-- dynamically verify selected JSM organisation membership at portal access time instead of relying only on the saved organisation-member snapshot;
-- search portal users across every selected service project;
-- use JSM server-side customer search for name/email queries and merge Jira picker fallback results;
-- preserve the consent-free split Portal Reports architecture and all existing private Excel Report Manager tooling.
+- replace UI Kit FileCard download with Custom UI browser download using Blob + object URL + anchor download;
+- keep the consent-free split app architecture and secure bridge unchanged;
+- preserve report listing, organisation access, user search, generation, saved reports, scheduler and private Retail in Motion tooling.
