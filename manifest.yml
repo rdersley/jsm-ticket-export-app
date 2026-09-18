@@ -46,16 +46,6 @@ modules:
       tooltip: Export the current Jira search using a saved Excel template
       viewportSize: large
 
-  jiraServiceManagement:portalSubheader:
-    - key: nuvriqo-excel-portal-reports-v9
-      resource: portal-native-ui-v9
-      resolver:
-        function: portal-probe
-      render: native
-      unlicensedAccess:
-        - customer
-        - unlicensed
-
   scheduledTrigger:
     - key: report-dispatcher
       function: scheduler
@@ -94,8 +84,6 @@ resources:
     path: static/hardware-ui/dist
   - key: navigator-ui
     path: static/navigator-ui/dist
-  - key: portal-native-ui-v9
-    path: src/frontend/portal-reports.jsx
   - key: portal-admin-ui
     path: static/portal-admin-ui/dist
 
