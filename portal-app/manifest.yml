@@ -23,7 +23,7 @@ permissions:
   external:
     fetch:
       backend:
-        - "*"
+        - "*.webtrigger.atlassian.app"
 
 app:
   runtime:
