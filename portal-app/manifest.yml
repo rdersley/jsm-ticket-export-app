@@ -1,0 +1,31 @@
+modules:
+  jiraServiceManagement:portalSubheader:
+    - key: nuvriqo-portal-reports
+      resource: portal-ui
+      resolver:
+        function: portal-resolver
+      render: native
+      unlicensedAccess:
+        - customer
+        - unlicensed
+
+  function:
+    - key: portal-resolver
+      handler: index.handler
+
+resources:
+  - key: portal-ui
+    path: src/frontend.jsx
+
+permissions:
+  scopes:
+    - storage:app
+  external:
+    fetch:
+      backend:
+        - "*.webtrigger.atlassian.app"
+
+app:
+  runtime:
+    name: nodejs22.x
+  id: ari:cloud:ecosystem::app/0da2cf9b-f20d-42f0-82df-e9f1645f8495
