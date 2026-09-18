@@ -49,7 +49,15 @@ jobs:
         shell: bash
         run: |
           if grep -q '00000000-0000-0000-0000-000000000000' manifest.yml; then
-            forge register "Nuvriqo Portal Reports" --accept-terms
+            SPACES_JSON="$(forge developer-spaces list --json)"
+            echo "$SPACES_JSON"
+            SPACE_ID="$(printf '%s' "$SPACES_JSON" | jq -r '.. | objects | select(has("id")) | .id' | head -n 1)"
+            if [ -z "$SPACE_ID" ] || [ "$SPACE_ID" = "null" ]; then
+              echo "Could not determine Developer Space ID."
+              exit 1
+            fi
+            echo "Registering in Developer Space: $SPACE_ID"
+            forge register "Nuvriqo Portal Reports" --accept-terms --developer-space-id "$SPACE_ID"
             echo "registered=true" >> "$GITHUB_OUTPUT"
           else
             echo "registered=false" >> "$GITHUB_OUTPUT"
