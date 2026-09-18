@@ -1,8 +1,9 @@
-Production Portal Reports picker privacy fix — 2026-09-18
+Production Portal Reports picker display polish — 2026-09-18
 
-Fix portal customer picker matches that Atlassian returns by email when the returned UserDTO hides the email address.
+Tidy the Selected portal users search result display on retailinmotion.atlassian.net.
 
 Changes:
-- trust queried JSM customer/user search results as valid matches;
-- only locally filter organisation-member enumeration results;
-- preserve selected/all service project fallback searching and existing portal/download functionality.
+- hide raw Atlassian account IDs from picker result rows;
+- show email where Atlassian returns it;
+- show a clean "Portal customer" secondary label when email is hidden by privacy settings;
+- preserve the now-working portal customer search and add flow.
