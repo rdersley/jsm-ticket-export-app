@@ -1,0 +1,93 @@
+name: Portal Reports development
+
+on:
+  push:
+    branches:
+      - feature/portal-reports
+    paths:
+      - 'portal-app/**'
+      - '.github/workflows/portal-app-development.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: portal-reports-development
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      FORGE_EMAIL: ${{ secrets.FORGE_EMAIL }}
+      FORGE_API_TOKEN: ${{ secrets.FORGE_API_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feature/portal-reports
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Forge CLI
+        run: npm install --global @forge/cli
+
+      - name: Configure Forge
+        run: forge settings set usage-analytics false
+
+      - name: Install portal dependencies
+        working-directory: portal-app
+        run: npm install
+
+      - name: Register Portal Reports Forge app
+        id: register
+        working-directory: portal-app
+        shell: bash
+        run: |
+          if grep -q '00000000-0000-0000-0000-000000000000' manifest.yml; then
+            forge register "Nuvriqo Portal Reports" --accept-terms
+            echo "registered=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "registered=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Persist registered app ID
+        if: steps.register.outputs.registered == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add portal-app/manifest.yml
+          git commit -m "Register Nuvriqo Portal Reports Forge app"
+          git push origin HEAD:feature/portal-reports
+
+      - name: Stop after registration
+        if: steps.register.outputs.registered == 'true'
+        run: echo "App registered. The pushed app ID will trigger the deployment run."
+
+      - name: Test
+        if: steps.register.outputs.registered != 'true'
+        working-directory: portal-app
+        run: npm test
+
+      - name: Forge lint
+        if: steps.register.outputs.registered != 'true'
+        working-directory: portal-app
+        run: forge lint
+
+      - name: Deploy development
+        if: steps.register.outputs.registered != 'true'
+        working-directory: portal-app
+        run: forge deploy -e development --approve MAJOR_VERSION_RULE --non-interactive
+
+      - name: Install or upgrade on Nuvriqo Jira
+        if: steps.register.outputs.registered != 'true'
+        working-directory: portal-app
+        shell: bash
+        run: |
+          forge install --upgrade --confirm-scopes --non-interactive --site nuvriqo.atlassian.net --product jira -e development || \
+          forge install --confirm-scopes --non-interactive --site nuvriqo.atlassian.net --product jira -e development
