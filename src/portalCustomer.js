@@ -1,4 +1,5 @@
 import Resolver from '@forge/resolver';
+import api, { route } from '@forge/api';
 import { Queue } from '@forge/events';
 import { kvs } from '@forge/kvs';
 import { listReports, getReport } from './services/reportStore.js';
@@ -44,6 +45,25 @@ async function getConfig(reportId) {
   };
 }
 
+async function accountInSelectedOrganizations(accountId, organizationIds = []) {
+  for (const organizationId of (organizationIds || []).map(String).filter(Boolean)) {
+    let start = 0;
+    for (let page = 0; page < 100; page += 1) {
+      const response = await api.asApp().requestJira(
+        route`/rest/servicedeskapi/organization/${organizationId}/user?start=${start}&limit=100`,
+        { headers: { Accept: 'application/json' } }
+      );
+      if (!response.ok) break;
+      const data = await response.json();
+      const values = data.values || [];
+      if (values.some(user => String(user?.accountId || '') === accountId)) return true;
+      if (data.isLastPage === true || values.length === 0) break;
+      start += values.length;
+    }
+  }
+  return false;
+}
+
 async function isAllowed(reportId, context) {
   const config = await getConfig(reportId);
   if (!config.enabled) return { allowed: false, config };
@@ -57,6 +77,11 @@ async function isAllowed(reportId, context) {
   if (config.accessMode !== 'selected') return { allowed: true, config };
   if ((config.userAccountIds || []).includes(accountId)) return { allowed: true, config };
   if ((config.organizationAccountIds || []).includes(accountId)) return { allowed: true, config };
+
+  if ((config.organizationIds || []).length && await accountInSelectedOrganizations(accountId, config.organizationIds)) {
+    return { allowed: true, config };
+  }
+
   return { allowed: false, config };
 }
 
