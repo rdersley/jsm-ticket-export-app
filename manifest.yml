@@ -47,8 +47,8 @@ modules:
       viewportSize: large
 
   jiraServiceManagement:portalSubheader:
-    - key: nuvriqo-excel-portal-reports-v9-probe
-      resource: portal-native-ui-v9-probe
+    - key: portal-v9
+      resource: portal-v9-ui
       resolver:
         function: portal-probe
       render: native
@@ -94,7 +94,7 @@ resources:
     path: static/hardware-ui/dist
   - key: navigator-ui
     path: static/navigator-ui/dist
-  - key: portal-native-ui-v9-probe
+  - key: portal-v9-ui
     path: src/frontend/portal-reports.jsx
   - key: portal-admin-ui
     path: static/portal-admin-ui/dist
