@@ -44,13 +44,26 @@ async function bridge(action, payload, context) {
   return body?.data;
 }
 
+resolver.define('portal:list', async ({ context }) => {
+  const reports = await bridge('portal:list', {}, context);
+  return Promise.all((reports || []).map(async report => {
+    if (!report?.allowDownload || !report?.latest) return report;
+    try {
+      const link = await bridge('portal:download-link', { reportId: report.id }, context);
+      return { ...report, downloadUrl: link?.url || '' };
+    } catch {
+      return report;
+    }
+  }));
+});
+
 for (const action of [
-  'portal:list',
   'portal:run',
   'portal:job-status',
   'portal:job-cleanup',
   'portal:latest-meta',
-  'portal:latest-chunk'
+  'portal:latest-chunk',
+  'portal:download-link'
 ]) {
   resolver.define(action, ({ payload, context }) => bridge(action, payload, context));
 }
