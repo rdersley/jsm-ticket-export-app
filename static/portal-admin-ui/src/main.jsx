@@ -38,10 +38,10 @@ function App(){
   };
   const save=async()=>{setBusy(true);try{const saved=await invoke('portal-admin:save',{reportId:selected.id,config:selected.config});setSelected(r=>({...r,config:saved}));setMessage('Portal access saved.');await load()}catch(e){setMessage(e?.message||'Could not save portal access.')}finally{setBusy(false)}};
   const searchCustomers=async()=>{
-    const serviceDeskId=(cfg.serviceDeskIds||[])[0];
-    if(!serviceDeskId){setMessage('Select a service project first.');return}
+    const serviceDeskIds=cfg.serviceDeskIds||[];
+    if(!serviceDeskIds.length){setMessage('Select at least one service project first.');return}
     setBusy(true);try{
-      const results=await invoke('portal-admin:customers',{serviceDeskId,query:customerQuery})||[];
+      const results=await invoke('portal-admin:customers',{serviceDeskIds,query:customerQuery})||[];
       setCustomerResults(results);
       setKnownUsers(existing=>({...existing,...Object.fromEntries(results.filter(u=>u.accountId).map(u=>[String(u.accountId),u]))}));
     }catch(e){setMessage(e?.message||'Could not search portal customers.')}finally{setBusy(false)}
