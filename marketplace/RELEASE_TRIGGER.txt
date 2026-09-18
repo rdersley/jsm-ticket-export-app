@@ -1,3 +1,3 @@
 Production release trigger — 2026-09-18
 
-Release reason: restore the full dynamic Portal Reports experience as v7 after the resolver-free diagnostic proved the portal module itself is healthy. Customer portal uses the dedicated portal-customer resolver, React 18 UI Kit runtime, report listing, published download and on-demand generation. Keep scheduler and private Weekly SD → Hardware / resolution-repair functionality unchanged.
+Release reason: remove the customer-facing Allow access prompt from the live JSM portal after v7 confirmed that the dynamic resolver path reintroduces Atlassian consent. Deploy a fresh resolver-free v8 portal module while the dynamic delivery architecture is redesigned. Keep scheduler, admin Portal Reports, and all private Weekly SD → Hardware / resolution-repair functionality unchanged.
