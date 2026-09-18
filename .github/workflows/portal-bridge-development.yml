@@ -1,0 +1,103 @@
+name: Portal Reports bridge development
+
+on:
+  push:
+    branches:
+      - feature/portal-reports
+    paths:
+      - 'src/portalBridge.js'
+      - 'src/portalCustomer.js'
+      - 'manifest.yml'
+      - 'portal-app/**'
+      - '.github/workflows/portal-bridge-development.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: portal-reports-bridge-development
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      FORGE_EMAIL: ${{ secrets.FORGE_EMAIL }}
+      FORGE_API_TOKEN: ${{ secrets.FORGE_API_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feature/portal-reports
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Forge CLI
+        run: npm install --global @forge/cli
+
+      - name: Configure Forge
+        run: forge settings set usage-analytics false
+
+      - name: Install main app dependencies
+        run: npm install
+
+      - name: Build main app
+        run: npm run build
+
+      - name: Deploy report engine development
+        run: forge deploy -e development --approve MAJOR_VERSION_RULE --non-interactive
+
+      - name: Install or upgrade report engine on Nuvriqo
+        shell: bash
+        run: |
+          forge install --upgrade --confirm-scopes --non-interactive --site nuvriqo.atlassian.net --product jira -e development || \
+          forge install --confirm-scopes --non-interactive --site nuvriqo.atlassian.net --product jira -e development
+
+      - name: Create secure bridge URL and token
+        id: bridge
+        shell: bash
+        run: |
+          TOKEN="$(openssl rand -hex 32)"
+          forge variables set --encrypt -e development PORTAL_BRIDGE_TOKEN "$TOKEN"
+          forge deploy -e development --approve MAJOR_VERSION_RULE --non-interactive
+
+          URL="$(forge webtrigger create -f portal-bridge -s nuvriqo.atlassian.net -p Jira -e development | grep -Eo 'https://[^ ]+' | tail -n 1)"
+          if [ -z "$URL" ]; then
+            echo "Could not obtain Portal Reports bridge URL."
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$URL"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Install portal app dependencies
+        working-directory: portal-app
+        run: npm install
+
+      - name: Configure portal app bridge
+        working-directory: portal-app
+        shell: bash
+        run: |
+          forge variables set --encrypt -e development PORTAL_BRIDGE_TOKEN "${{ steps.bridge.outputs.token }}"
+          forge variables set --encrypt -e development PORTAL_BRIDGE_URL "${{ steps.bridge.outputs.url }}"
+
+      - name: Test Portal Reports app
+        working-directory: portal-app
+        run: npm test
+
+      - name: Lint Portal Reports app
+        working-directory: portal-app
+        run: forge lint
+
+      - name: Deploy Portal Reports development
+        working-directory: portal-app
+        run: forge deploy -e development --approve MAJOR_VERSION_RULE --non-interactive
+
+      - name: Install or upgrade Portal Reports on Nuvriqo
+        working-directory: portal-app
+        shell: bash
+        run: |
+          forge install --upgrade --confirm-scopes --non-interactive --site nuvriqo.atlassian.net --product jira -e development || \
+          forge install --confirm-scopes --non-interactive --site nuvriqo.atlassian.net --product jira -e development
