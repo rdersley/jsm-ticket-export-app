@@ -2,9 +2,11 @@ import Resolver from '@forge/resolver';
 
 const resolver = new Resolver();
 
-resolver.define('probe', async () => ({
+resolver.define('portal:probe', ({ context }) => ({
   ok: true,
-  message: 'Backend resolver connected without customer authorization.'
+  accountType: context?.accountType || '',
+  hasAccountId: Boolean(context?.accountId),
+  portalId: String(context?.extension?.portal?.id || context?.portal?.id || '')
 }));
 
 export const handler = resolver.getDefinitions();
