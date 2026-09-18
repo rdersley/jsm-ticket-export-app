@@ -1,6 +1,10 @@
-Production Portal Reports button + auto-download polish — 2026-09-18
+Production Portal Reports picker expansion — 2026-09-18
+
+Fix exact-name/email portal customer lookup on retailinmotion.atlassian.net.
 
 Changes:
-- replace blue-on-blue LinkButton with a proper primary Button for readable Download Excel text;
-- after Generate fresh report reaches ready, refresh the published report metadata and automatically open the signed download page;
-- preserve the working signed download flow, native UI Kit portal visibility, consent-free access, organisation checks and user picker fixes.
+- search selected JSM service projects first;
+- if no match, expand search to every JSM service project on the site;
+- for email input, search both the full address and the local-part before @;
+- retain selected-organisation and Jira user-search fallbacks;
+- preserve working report visibility, signed download and generation flow.
