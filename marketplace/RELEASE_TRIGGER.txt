@@ -1,10 +1,8 @@
-Production Portal Reports picker expansion — 2026-09-18
+Production Portal Reports picker privacy fix — 2026-09-18
 
-Fix exact-name/email portal customer lookup on retailinmotion.atlassian.net.
+Fix portal customer picker matches that Atlassian returns by email when the returned UserDTO hides the email address.
 
 Changes:
-- search selected JSM service projects first;
-- if no match, expand search to every JSM service project on the site;
-- for email input, search both the full address and the local-part before @;
-- retain selected-organisation and Jira user-search fallbacks;
-- preserve working report visibility, signed download and generation flow.
+- trust queried JSM customer/user search results as valid matches;
+- only locally filter organisation-member enumeration results;
+- preserve selected/all service project fallback searching and existing portal/download functionality.
