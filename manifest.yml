@@ -14,20 +14,6 @@ modules:
         function: resolver
       title: Excel Report Manager
       layout: blank
-    - key: nuvriqo-excel-portal-reports-admin
-      resource: portal-admin-ui
-      resolver:
-        function: portal-resolver
-      title: Portal Reports
-      layout: blank
-      useAsConfig: true
-    - key: nuvriqo-weekly-hardware-report-admin
-      resource: hardware-ui
-      resolver:
-        function: resolver
-      title: Weekly SD → Hardware Report
-      layout: blank
-      useAsGetStarted: true
 
   jira:projectPage:
     - key: nuvriqo-excel-report-manager-project
@@ -46,13 +32,6 @@ modules:
       tooltip: Export the current Jira search using a saved Excel template
       viewportSize: large
 
-  webtrigger:
-    - key: portal-bridge
-      function: portal-bridge-fn
-      urlFormat: v2
-      response:
-        type: dynamic
-
   scheduledTrigger:
     - key: report-dispatcher
       function: scheduler
@@ -62,9 +41,6 @@ modules:
     - key: report-export-consumer
       queue: report-export-queue
       function: export-worker
-    - key: portal-report-consumer
-      queue: portal-report-queue
-      function: portal-worker
 
   function:
     - key: resolver
@@ -74,35 +50,18 @@ modules:
     - key: export-worker
       handler: asyncExport.handler
       timeoutSeconds: 900
-    - key: portal-resolver
-      handler: portalReports.handler
-    - key: portal-customer
-      handler: portalCustomer.handler
-    - key: portal-bridge-fn
-      handler: portalBridge.trigger
-    - key: portal-worker
-      handler: portalReports.portalWorker
-      timeoutSeconds: 900
 
 resources:
   - key: admin-ui
     path: static/admin-ui/dist
-  - key: hardware-ui
-    path: static/hardware-ui/dist
   - key: navigator-ui
     path: static/navigator-ui/dist
-  - key: portal-admin-ui
-    path: static/portal-admin-ui/dist
 
 permissions:
   scopes:
     - read:jira-work
     - read:field:jira
     - read:filter:jira
-    - read:servicedesk-request
-    - read:organization:jira-service-management
-    - read:organization.user:jira-service-management
-    - read:servicedesk.customer:jira-service-management
     - read:user:jira
     - storage:app
   external:
@@ -115,4 +74,4 @@ permissions:
 app:
   runtime:
     name: nodejs22.x
-  id: ari:cloud:ecosystem::app/1e0f0b2e-20cf-444b-98bb-4d4cd67df86a
+  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
