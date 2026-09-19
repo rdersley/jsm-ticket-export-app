@@ -1,0 +1,50 @@
+name: Marketplace production deploy
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: marketplace-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      FORGE_EMAIL: ${{ secrets.FORGE_EMAIL }}
+      FORGE_API_TOKEN: ${{ secrets.FORGE_API_TOKEN }}
+
+    steps:
+      - name: Checkout Marketplace release
+        uses: actions/checkout@v4
+        with:
+          ref: marketplace-release
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+
+      - name: Run Marketplace regression tests
+        run: npm test
+
+      - name: Build Marketplace UI
+        run: npm run build
+
+      - name: Install Forge CLI
+        run: npm install --global @forge/cli
+
+      - name: Configure Forge CLI
+        run: forge settings set usage-analytics false
+
+      - name: Forge lint
+        run: forge lint
+
+      - name: Deploy Marketplace app to production
+        run: forge deploy -e production --approve MAJOR_VERSION_RULE --non-interactive --verbose
