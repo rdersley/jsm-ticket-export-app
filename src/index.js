@@ -4,11 +4,8 @@ import { listReports, getReport, saveReport, deleteReport } from './services/rep
 import { listFields, listFilters } from './services/jira.js';
 import { getRuns } from './services/runHistory.js';
 import { runReport } from './services/runner.js';
-import { startExport, startHardwareWeeklyExport, startResolutionRepair, getExportStatus, getExportChunk, cleanupExport } from './asyncExport.js';
+import { startExport, getExportStatus, getExportChunk, cleanupExport } from './asyncExport.js';
 import { getEmailSettings, saveEmailSettings, sendTestEmail } from './services/email.js';
-import { buildHardwareWeeklyReportV2, HARDWARE_WEEKLY_DEFAULTS_V2 } from './services/hardwareWeeklyReportV2.js';
-import { RESOLUTION_REPAIR_DEFAULTS } from './services/resolutionRepair.js';
-import { getHardwareWeeklySettings, saveHardwareWeeklySettings } from './services/hardwareWeeklySettings.js';
 
 const resolver = new Resolver();
 resolver.define('report:list', () => listReports());
@@ -29,13 +26,6 @@ resolver.define('report:run:status', ({ payload }) => getExportStatus(payload.jo
 resolver.define('report:run:chunk', ({ payload }) => getExportChunk(payload.jobId, payload.index));
 resolver.define('report:run:cleanup', ({ payload }) => cleanupExport(payload.jobId));
 resolver.define('report:run', async ({ payload }) => runReport(await getReport(payload.id), { delivery: false }));
-resolver.define('report:hardware-weekly:defaults', () => structuredClone(HARDWARE_WEEKLY_DEFAULTS_V2));
-resolver.define('report:hardware-weekly:settings:get', () => getHardwareWeeklySettings());
-resolver.define('report:hardware-weekly:settings:save', ({ payload }) => saveHardwareWeeklySettings(payload || {}));
-resolver.define('report:hardware-weekly:start', ({ payload }) => startHardwareWeeklyExport(payload || {}));
-resolver.define('report:hardware-weekly:run', ({ payload }) => buildHardwareWeeklyReportV2(payload || {}));
-resolver.define('report:resolution-repair:defaults', () => structuredClone(RESOLUTION_REPAIR_DEFAULTS));
-resolver.define('report:resolution-repair:start', ({ payload }) => startResolutionRepair(payload || {}));
 resolver.define('report:navigator-export', async ({ payload }) => {
   const template = await getReport(payload.id);
   if (!template) throw new Error('Template not found.');
