@@ -1,0 +1,38 @@
+modules:
+  jira:adminPage:
+    - key: published-report-poc-admin
+      resource: admin-ui
+      resolver:
+        function: resolver
+      title: Published Report POC
+      render: native
+
+  jiraServiceManagement:portalSubheader:
+    - key: published-report-poc-portal
+      resource: portal-ui
+      render: native
+      unlicensedAccess:
+        - customer
+        - unlicensed
+
+  function:
+    - key: resolver
+      handler: index.handler
+
+resources:
+  - key: admin-ui
+    path: src/admin.jsx
+  - key: portal-ui
+    path: src/portal.jsx
+
+permissions:
+  scopes:
+    - read:servicedesk-request
+    - write:servicedesk-request
+    - read:servicedesk.customer:jira-service-management
+    - read:user:jira
+
+app:
+  runtime:
+    name: nodejs22.x
+  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
