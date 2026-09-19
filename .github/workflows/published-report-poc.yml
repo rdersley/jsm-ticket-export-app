@@ -1,0 +1,106 @@
+name: Published report Atlassian-only POC
+
+on:
+  push:
+    branches:
+      - published-report-poc
+    paths:
+      - 'published-report-poc-app/**'
+      - '.github/workflows/published-report-poc.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: published-report-poc
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      FORGE_EMAIL: ${{ secrets.FORGE_EMAIL }}
+      FORGE_API_TOKEN: ${{ secrets.FORGE_API_TOKEN }}
+
+    steps:
+      - name: Checkout POC branch
+        uses: actions/checkout@v4
+        with:
+          ref: published-report-poc
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Forge CLI
+        run: npm install --global @forge/cli
+
+      - name: Configure Forge CLI
+        run: forge settings set usage-analytics false
+
+      - name: Register isolated Forge POC app
+        id: register
+        working-directory: published-report-poc-app
+        shell: bash
+        run: |
+          if grep -q '00000000-0000-0000-0000-000000000000' manifest.yml; then
+            SPACES_JSON="$(forge developer-spaces list --json)"
+            SPACE_ID="$(printf '%s' "$SPACES_JSON" | jq -r '.. | objects | select(has("id")) | .id' | head -n 1)"
+            if [ -z "$SPACE_ID" ] || [ "$SPACE_ID" = "null" ]; then
+              echo "Could not determine Developer Space ID."
+              exit 1
+            fi
+            forge register "Nuvriqo Published Report POC" --accept-terms --developer-space-id "$SPACE_ID"
+            echo "registered=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "registered=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Persist POC app ID
+        if: steps.register.outputs.registered == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add published-report-poc-app/manifest.yml
+          git commit -m "Register published report POC app"
+          git push origin HEAD:published-report-poc
+
+      - name: Stop after registration
+        if: steps.register.outputs.registered == 'true'
+        run: echo "POC app registered; next run will deploy and install it."
+
+      - name: Install POC dependencies
+        if: steps.register.outputs.registered != 'true'
+        working-directory: published-report-poc-app
+        run: npm install
+
+      - name: Security audit
+        if: steps.register.outputs.registered != 'true'
+        working-directory: published-report-poc-app
+        run: npm audit --audit-level=high
+
+      - name: Test POC source
+        if: steps.register.outputs.registered != 'true'
+        working-directory: published-report-poc-app
+        run: npm test
+
+      - name: Forge lint POC
+        if: steps.register.outputs.registered != 'true'
+        working-directory: published-report-poc-app
+        continue-on-error: true
+        run: forge lint
+
+      - name: Deploy POC to development
+        if: steps.register.outputs.registered != 'true'
+        working-directory: published-report-poc-app
+        run: forge deploy -e development --approve MAJOR_VERSION_RULE --non-interactive
+
+      - name: Install or upgrade POC on Nuvriqo test site
+        if: steps.register.outputs.registered != 'true'
+        working-directory: published-report-poc-app
+        shell: bash
+        run: |
+          forge install --upgrade --confirm-scopes --non-interactive --site nuvriqo.atlassian.net --product jira -e development ||           forge install --confirm-scopes --non-interactive --site nuvriqo.atlassian.net --product jira -e development
