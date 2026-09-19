@@ -24,7 +24,7 @@ This branch is the public Marketplace release line.
 
 It intentionally excludes Nuvriqo's private worksite tooling, including Weekly SD → Hardware reporting, Resolution Repair and customer-specific mappings or deployment configuration.
 
-Portal Reports for JSM customers uses a separate consent-free Forge companion architecture. It is not advertised or shipped in Marketplace v1 until the two-app onboarding/install handshake is automated for Marketplace customers.
+Portal Reports is included in Marketplace v1 through the free Portal Reports Companion. The main app generates an installation-specific setup code so customers can pair both Marketplace apps without Nuvriqo intervention.
 
 ## Development
 
