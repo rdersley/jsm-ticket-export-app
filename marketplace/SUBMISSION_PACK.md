@@ -1,5 +1,11 @@
 # Nuvriqo Excel Report Manager for Jira — Marketplace Submission Pack
 
+**Marketplace Forge app ID:** `ari:cloud:ecosystem::app/77b1744e-faac-4db7-9b7d-d066f858fe7c`
+
+**Release branch:** `marketplace-release`
+
+**Version:** `1.0.0`
+
 ## Listing name
 Nuvriqo Excel Report Manager for Jira
 
@@ -53,6 +59,10 @@ The customer configures their own Microsoft Entra application and supplies Tenan
 The customer supplies their own SendGrid API key and sender details. The app uses SendGrid only for delivery of report emails configured by the customer.
 
 ## Not included in v1
+- JSM Portal Reports / customer portal publishing (kept in the separate consent-free companion architecture until Marketplace onboarding can install/configure both Forge apps automatically)
+- Private Weekly SD → Hardware reporting
+- Private Resolution Repair tooling
+- Retail in Motion / airline / customer-specific mappings
 - Microsoft 365 Easy Connect / shared Nuvriqo OAuth application
 - Uploaded XLSX files as templates
 - Excel charts or pivot tables
@@ -73,6 +83,9 @@ Required to retrieve available Jira standard and custom field metadata so admini
 
 ### `read:filter:jira`
 Required to list and read saved Jira filters when a report uses a saved filter as its data source.
+
+### `read:user:jira`
+Required where Jira user metadata is needed to render user-related fields in report output.
 
 ### `storage:app`
 Required to store report definitions, schedule configuration, run history, encrypted provider credentials and temporary/background export state in Forge storage.
@@ -138,6 +151,9 @@ For Marketplace review, use a test report with generic data and keep scheduled d
 
 ## Release gate
 Before submission confirm:
+- Marketplace build uses Forge app ID `ari:cloud:ecosystem::app/77b1744e-faac-4db7-9b7d-d066f858fe7c`, not the private worksite app ID.
+- Marketplace manifest contains no private Hardware, Resolution Repair, Retail in Motion or Portal Reports companion modules.
+- Marketplace package exclusions are active through `.forgeignore`.
 - Main dashboard loads without timeout.
 - Create/edit/duplicate/delete report works.
 - Preview/download works.
