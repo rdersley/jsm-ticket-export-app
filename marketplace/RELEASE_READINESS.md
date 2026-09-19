@@ -20,13 +20,23 @@
 - Microsoft 365 / Microsoft Graph email delivery with customer-owned credentials
 - SendGrid email delivery with customer-owned credentials
 - Run history
+- JSM Portal Reports publishing and access control
+- Customer portal download latest / generate on demand
+- Free consent-free Portal Reports Companion pairing
+
+## Portal Reports companion
+- **Companion Forge app ID:** `ari:cloud:ecosystem::app/d78ded8d-1d7c-4dc1-87e5-e57f6f2b5ac0`
+- The companion should be listed as a separate free Marketplace app.
+- It requires Excel Report Manager on the same site.
+- Pairing is performed once by an admin using the setup code generated in Excel Report Manager.
+- The companion has no Jira product scopes.
 
 ## Explicitly excluded from the public build
 - Weekly SD → Hardware tooling
 - Resolution Repair
 - Retail in Motion / airline / client-specific mappings
 - Private worksite deployment automation
-- JSM Portal Reports companion app (future Marketplace release after automated two-app onboarding)
+
 
 The public manifest, resolver and async worker do not expose the private modules. `.forgeignore` also excludes private source/UI files from the Forge Marketplace package.
 
