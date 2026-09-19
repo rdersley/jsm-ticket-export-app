@@ -74,3 +74,6 @@ These require Marketplace / Partner Portal account actions rather than repositor
 
 ## Do not merge
 Do not merge `marketplace-release` back into the private worksite release line. Keep both release lines independent so public Marketplace deployments can never remove or alter private worksite modules.
+
+## Validation status
+Development validation status: tests, dependency audit, UI build, Forge lint and Forge development deployment must all be green on the current branch head before production promotion.
