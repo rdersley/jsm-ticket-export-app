@@ -1,0 +1,35 @@
+modules:
+  jiraServiceManagement:portalSubheader:
+    - key: forge-only-portal-poc
+      resource: portal-ui
+      resolver:
+        function: portal-resolver
+      render: native
+      unlicensedAccess:
+        - customer
+        - unlicensed
+
+  function:
+    - key: portal-resolver
+      handler: index.handler
+
+resources:
+  - key: portal-ui
+    path: src/frontend.jsx
+
+permissions:
+  scopes:
+    - read:jira-work
+    - read:field:jira
+    - read:filter:jira
+    - read:servicedesk-request
+    - read:organization:jira-service-management
+    - read:organization.user:jira-service-management
+    - read:servicedesk.customer:jira-service-management
+    - read:user:jira
+    - storage:app
+
+app:
+  runtime:
+    name: nodejs22.x
+  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
