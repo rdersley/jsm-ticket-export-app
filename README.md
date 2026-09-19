@@ -1,46 +1,30 @@
-# Nuvriqo Excel Report Manager
+# Nuvriqo Excel Report Manager for Jira
 
-Create, style, schedule and email professional Jira Excel reports without Jira Automation rules.
+Create, style, schedule and email professional Excel reports from Jira without Jira Automation rules or custom scripts.
 
-## Core features
+## Marketplace v1 features
 
-- Standard and custom Jira field discovery
+- Build reports from JQL or saved Jira filters
+- Discover standard and custom Jira fields
 - Add, rename, resize and reorder Excel columns
-- Visual workbook options and mini-preview
-- XLSX generation with ExcelJS
-- Pagination up to a configurable issue limit
-- Jira hyperlinks, filters, frozen headers, titles and alternating rows
-- Downloadable live preview
-- Scheduled report delivery
-- Microsoft 365 / Graph and SendGrid email delivery
-- Reusable templates from Jira search / issue navigator
-- Portal report publishing for JSM customers
+- Style workbook headings, fonts, dates, alternating rows and print settings
+- Generate XLSX files with native Excel dates and Jira hyperlinks
+- Export up to 10,000 work items per workbook
+- Save reusable report templates
+- Export the current Jira Search result using a saved template
+- Run larger exports asynchronously
+- Schedule reports daily, on weekdays, weekly or monthly
+- Timezone-aware scheduling
+- Send scheduled XLSX reports through customer-configured Microsoft 365 / Graph or SendGrid
+- View report run history
 
-## Weekly SD → Hardware Management Report
+## Marketplace / private build separation
 
-The app also includes a dedicated management export for support flows where crew/customer demand starts in one Jira project and agents create a separate Hardware issue when physical intervention is required.
+This branch is the public Marketplace release line.
 
-The report runs two independent base JQL queries. This means each client can have its own saved report criteria without mixing SD demand and HW workload:
+It intentionally excludes Nuvriqo's private worksite tooling, including Weekly SD → Hardware reporting, Resolution Repair and customer-specific mappings or deployment configuration.
 
-- **SD JQL** for Service Desk demand, for example `project = SD AND "SD Client" = RYR`
-- **HW JQL** for Hardware workload, for example `project = HW AND "SD Client" = RYR`
-
-The app adds the selected report period to both queries automatically and generates one workbook containing:
-
-- SD tickets raised
-- SD tickets escalated to linked HW issues
-- escalation rate
-- HW tickets created
-- devices sent using the configured Date Sent field
-- devices received back using Jira status-transition history
-- current open HW tickets
-- open HW tickets older than two weeks
-- HW tickets closed during the period
-- awaiting-dispatch and awaiting-return counts
-- separate SD and HW detail sheets
-- a configuration sheet showing the actual JQL and mappings used
-
-The Jira global navigation entry is **Weekly SD → Hardware Report**.
+Portal Reports for JSM customers uses a separate consent-free Forge companion architecture. It is not advertised or shipped in Marketplace v1 until the two-app onboarding/install handshake is automated for Marketplace customers.
 
 ## Development
 
@@ -50,3 +34,6 @@ npm test
 npm run build
 forge lint
 ```
+
+Vendor: Nuvriqo  
+Support: support@nuvriqo.com
