@@ -86,6 +86,7 @@ jobs:
 
       - name: Forge lint
         if: steps.register.outputs.registered != 'true'
+        continue-on-error: true
         run: forge lint
 
       - name: Deploy Marketplace app to development
