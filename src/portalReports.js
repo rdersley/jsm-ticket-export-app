@@ -1,5 +1,5 @@
 import Resolver from '@forge/resolver';
-import api, { route } from '@forge/api';
+import api, { route, webTrigger } from '@forge/api';
 import { Queue } from '@forge/events';
 import { kvs } from '@forge/kvs';
 import { listReports, getReport } from './services/reportStore.js';
@@ -13,6 +13,7 @@ const JOB_CHUNK_PREFIX = 'portal:job:chunk:';
 const LATEST_PREFIX = 'portal:latest:';
 const LATEST_CHUNK_PREFIX = 'portal:latest:chunk:';
 const CHUNK_SIZE = 180000;
+const BRIDGE_SECRET_KEY = 'portal:bridge-secret';
 
 const configKey = id => `${CONFIG_PREFIX}${id}`;
 const jobKey = id => `${JOB_PREFIX}${id}`;
@@ -92,6 +93,38 @@ function portalIdFrom(context) {
   const location = String(context?.extension?.location || context?.location || '').trim();
   const match = location.match(/\/portal\/(\d+)(?:\/|$|\?)/i);
   return match?.[1] || '';
+}
+
+async function createCompanionPairing() {
+  let secret = await kvs.getSecret(BRIDGE_SECRET_KEY);
+  if (!secret) {
+    secret = `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, '');
+    await kvs.setSecret(BRIDGE_SECRET_KEY, secret);
+  }
+
+  const url = await webTrigger.getUrl('portal-bridge');
+  const code = Buffer.from(JSON.stringify({ v: 1, url, token: secret }), 'utf8').toString('base64url');
+  return {
+    code,
+    connected: true,
+    endpointHost: (() => {
+      try { return new URL(url).host; } catch { return ''; }
+    })()
+  };
+}
+
+async function rotateCompanionPairing() {
+  const secret = `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, '');
+  await kvs.setSecret(BRIDGE_SECRET_KEY, secret);
+  const url = await webTrigger.getUrl('portal-bridge');
+  const code = Buffer.from(JSON.stringify({ v: 1, url, token: secret }), 'utf8').toString('base64url');
+  return {
+    code,
+    connected: true,
+    endpointHost: (() => {
+      try { return new URL(url).host; } catch { return ''; }
+    })()
+  };
 }
 
 async function requireAdmin(context) {
@@ -283,6 +316,14 @@ export async function portalWorker(event) {
 }
 
 resolver.define('portal-admin:list', async ({ context }) => { await requireAdmin(context); return listAdminReports(); });
+resolver.define('portal-admin:companion-code', async ({ context }) => {
+  await requireAdmin(context);
+  return createCompanionPairing();
+});
+resolver.define('portal-admin:companion-rotate', async ({ context }) => {
+  await requireAdmin(context);
+  return rotateCompanionPairing();
+});
 resolver.define('portal-admin:save', async ({ payload, context }) => { await requireAdmin(context); return saveConfig(payload.reportId, payload.config); });
 resolver.define('portal-admin:publish', async ({ payload, context }) => { await requireAdmin(context); return startJob(payload.reportId, context, true); });
 resolver.define('portal-admin:service-desks', async ({ context }) => {
