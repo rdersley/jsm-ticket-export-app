@@ -8,7 +8,7 @@
     "build": "npm run build:admin && npm run build:navigator",
     "build:admin": "vite build --config static/admin-ui/vite.config.js",
     "build:navigator": "vite build --config static/navigator-ui/vite.config.js",
-    "test": "node --experimental-default-type=module --test tests/*.test.js",
+    "test": "node --experimental-default-type=module --test tests/schedule.test.js tests/workbook.test.js",
     "lint": "forge lint",
     "deploy": "npm run build && forge deploy"
   },
