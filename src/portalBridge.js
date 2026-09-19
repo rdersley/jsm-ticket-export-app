@@ -1,5 +1,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { handlePortalAction } from './portalCustomer.js';
+import { kvs } from '@forge/kvs';
+
+const BRIDGE_SECRET_KEY = 'portal:bridge-secret';
 
 function headerValue(headers, name) {
   const entry = Object.entries(headers || {}).find(([key]) => key.toLowerCase() === name.toLowerCase());
@@ -131,8 +134,8 @@ window.addEventListener('load',()=>setTimeout(startDownload,100));
 }
 
 export async function trigger(request) {
-  const secret = String(process.env.PORTAL_BRIDGE_TOKEN || '');
-  if (!secret) return jsonResponse(500, { ok: false, error: 'Portal bridge is not configured.' });
+  const secret = String((await kvs.getSecret(BRIDGE_SECRET_KEY)) || '');
+  if (!secret) return jsonResponse(503, { ok: false, error: 'Portal Reports companion is not paired yet.' });
 
   const downloadToken = queryValue(request, 'download');
   if (downloadToken) {
