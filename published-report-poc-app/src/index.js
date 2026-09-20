@@ -174,13 +174,23 @@ resolver.define('poc:publish', async ({ payload }) => {
   const temporary = await uploadTemporary(serviceDeskId, workbook, filename);
   const published = await publishAttachment(issueKey, temporary.temporaryAttachmentId);
 
+  const attachmentPayload =
+    Array.isArray(published?.attachments) ? published.attachments :
+    Array.isArray(published?.values) ? published.values :
+    published?.attachment ? [published.attachment] :
+    published?.attachments && typeof published.attachments === 'object' ? Object.values(published.attachments) :
+    [];
+
   return {
     ok: true,
     issueKey,
     customer: customer.displayName || customer.emailAddress || customer.accountId,
     requestType: selected.type.name || selected.type.id,
     filename,
-    publishedAttachments: published?.attachments?.map(a => ({ filename: a.filename, content: a?._links?.content || '' })) || []
+    publishedAttachments: attachmentPayload.map(a => ({
+      filename: a?.filename || filename,
+      content: a?._links?.content || a?.content || ''
+    }))
   };
 });
 
