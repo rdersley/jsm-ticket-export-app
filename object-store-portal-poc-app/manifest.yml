@@ -14,6 +14,8 @@ modules:
   jiraServiceManagement:portalSubheader:
     - key: object-store-poc-portal
       resource: portal-ui
+      resolver:
+        function: object-resolver
       render: native
       unlicensedAccess:
         - customer
@@ -22,8 +24,8 @@ modules:
   function:
     - key: admin-resolver
       handler: index.adminHandler
-    - key: object-download
-      handler: index.generateDownloadUrls
+    - key: object-resolver
+      handler: index.objectHandler
 
 resources:
   - key: admin-ui
