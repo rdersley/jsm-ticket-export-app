@@ -52,13 +52,18 @@ resolver.define('poc:publish', async () => {
 
 export const adminHandler = resolver.getDefinitions();
 
-export async function generateDownloadUrls(keys = []) {
+const objectResolver = new Resolver();
+
+objectResolver.define('object-download', async ({ payload }) => {
+  const keys = Array.isArray(payload) ? payload : (Array.isArray(payload?.keys) ? payload.keys : []);
   const allowed = new Set([OBJECT_KEY]);
   const map = {};
-  for (const key of Array.isArray(keys) ? keys : []) {
+  for (const key of keys) {
     if (!allowed.has(String(key))) continue;
     const result = await fos.createDownloadUrl(String(key));
     if (result?.url) map[result.url] = String(key);
   }
   return map;
-}
+});
+
+export const objectHandler = objectResolver.getDefinitions();
