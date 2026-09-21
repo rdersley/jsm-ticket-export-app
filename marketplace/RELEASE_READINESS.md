@@ -21,15 +21,17 @@
 - SendGrid email delivery with customer-owned credentials
 - Run history
 - JSM Portal Reports publishing and access control
-- Customer portal download latest / generate on demand
-- Free consent-free Portal Reports Companion pairing
+- Publish generated XLSX reports to selected JSM portal customers
+- Customer delivery through normal JSM requests and public attachments
+- Static consent-free portal guidance panel
 
-## Portal Reports companion
-- **Companion Forge app ID:** `ari:cloud:ecosystem::app/d78ded8d-1d7c-4dc1-87e5-e57f6f2b5ac0`
-- The companion should be listed as a separate free Marketplace app.
-- It requires Excel Report Manager on the same site.
-- Pairing is performed once by an admin using the setup code generated in Excel Report Manager.
-- The companion has no Jira product scopes.
+## Portal Reports architecture
+- Portal Reports is part of the same Forge app and Marketplace listing.
+- Admins configure a target JSM service project and selected portal customers.
+- Forge generates the workbook using app permissions, so the finished file may contain deliberately published data the customer cannot browse directly.
+- The app creates a customer-visible JSM request and attaches the generated XLSX as a public attachment.
+- The customer-facing portal module is static and performs no Jira API or Forge resolver calls, avoiding the customer-facing consent prompt.
+- No companion app or external remote backend is required.
 
 ## Explicitly excluded from the public build
 - Weekly SD → Hardware tooling
@@ -45,6 +47,9 @@ The public manifest, resolver and async worker do not expose the private modules
 - `read:field:jira` — retrieve field metadata for report column selection.
 - `read:filter:jira` — read saved Jira filters used as report sources.
 - `read:user:jira` — read user metadata when required by user-related report fields.
+- `read:servicedesk-request` — read JSM request metadata used for portal delivery administration.
+- `write:servicedesk-request` — create customer-visible report requests and publish XLSX attachments.
+- `read:servicedesk.customer:jira-service-management` — search selected portal customers for report delivery.
 - `storage:app` — store report definitions, schedules, history, delivery settings and async export state.
 
 ## External egress
