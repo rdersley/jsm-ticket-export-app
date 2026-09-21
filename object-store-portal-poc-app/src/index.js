@@ -1,23 +1,19 @@
 import Resolver from '@forge/resolver';
 import fos from '@forge/object-store';
-import ExcelJS from 'exceljs';
 import crypto from 'node:crypto';
 
 const OBJECT_KEY = 'portal-poc/latest-report.xlsx';
 const resolver = new Resolver();
 
-async function buildWorkbook() {
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet('Report');
-  ws.columns = [
-    { header: 'Field', key: 'field', width: 28 },
-    { header: 'Value', key: 'value', width: 70 }
-  ];
-  ws.addRow({ field: 'Test', value: 'Forge Object Store customer portal proof of concept' });
-  ws.addRow({ field: 'Generated', value: new Date().toISOString() });
-  ws.addRow({ field: 'Purpose', value: 'Prove a portal customer can download a backend-generated XLSX without a JSM ticket and without granting app access.' });
-  ws.getRow(1).font = { bold: true };
-  return Buffer.from(await wb.xlsx.writeBuffer());
+async function buildTestFile() {
+  // Deliberately avoid ExcelJS in this isolated POC. The goal is to prove
+  // Object Store upload/download + portal consent behaviour only.
+  return Buffer.from(
+    'Nuvriqo Object Store Portal POC\n' +
+    'Generated: ' + new Date().toISOString() + '\n' +
+    'This file proves backend-generated content can be stored and downloaded without a JSM ticket.\n',
+    'utf8'
+  );
 }
 
 async function uploadObject(key, buffer) {
@@ -34,7 +30,7 @@ async function uploadObject(key, buffer) {
   const response = await fetch(created.url, {
     method: 'PUT',
     headers: {
-      'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      'content-type': 'application/octet-stream'
     },
     body: buffer
   });
@@ -42,9 +38,9 @@ async function uploadObject(key, buffer) {
 }
 
 resolver.define('poc:publish', async () => {
-  const buffer = await buildWorkbook();
+  const buffer = await buildTestFile();
   await uploadObject(OBJECT_KEY, buffer);
-  const metadata = await fos.getMetadata(OBJECT_KEY).catch(() => null);
+  const metadata = await fos.get(OBJECT_KEY).catch(() => null);
   return {
     ok: true,
     key: OBJECT_KEY,
