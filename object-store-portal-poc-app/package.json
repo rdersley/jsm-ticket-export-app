@@ -19,7 +19,7 @@
     "vite": "^7.1.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "latest"
+    "@vitejs/plugin-react": "^5.0.0"
   },
   "description": "Isolated Forge Object Store portal download consent test."
 }
