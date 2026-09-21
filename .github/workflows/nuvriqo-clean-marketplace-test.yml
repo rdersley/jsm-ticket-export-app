@@ -45,12 +45,12 @@ jobs:
           set +e
 
           APP_IDS=(
-            "ari:cloud:ecosystem::app/1e0f0b2e-20cf-444b-98bb-4d4cd67df86a"
-            "ari:cloud:ecosystem::app/0da2cf9b-f20d-42f0-82df-e9f1645f8495"
-            "ari:cloud:ecosystem::app/77b1744e-faac-4db7-9b7d-d066f858fe7c"
-            "ari:cloud:ecosystem::app/d78ded8d-1d7c-4dc1-87e5-e57f6f2b5ac0"
-            "ari:cloud:ecosystem::app/b0cf5a4e-051d-4def-b091-2ab4120cabaa"
-            "ari:cloud:ecosystem::app/ad79efcb-7234-4d28-9ddb-a0e30a1c5a82"
+            "1e0f0b2e-20cf-444b-98bb-4d4cd67df86a"
+            "0da2cf9b-f20d-42f0-82df-e9f1645f8495"
+            "77b1744e-faac-4db7-9b7d-d066f858fe7c"
+            "d78ded8d-1d7c-4dc1-87e5-e57f6f2b5ac0"
+            "b0cf5a4e-051d-4def-b091-2ab4120cabaa"
+            "ad79efcb-7234-4d28-9ddb-a0e30a1c5a82"
           )
 
           for APP_ID in "${APP_IDS[@]}"; do
