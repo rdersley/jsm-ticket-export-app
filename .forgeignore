@@ -9,13 +9,13 @@ src/services/resolutionRepair.js
 tests/hardwareWeeklyReport.test.js
 tests/hardwareWeeklyReportV2.test.js
 
-# Portal Reports customer UI is a separate Forge companion app.
-# The main Marketplace app DOES include the generic Portal Reports admin,
-# access-control, publishing and authenticated bridge backend.
+# Obsolete experimental portal companion/probe code is not shipped.
 portal-app/**
 src/portalProbe.js
+src/portalBridge.js
 .github/workflows/portal-app-development.yml
 .github/workflows/portal-bridge-development.yml
+.github/workflows/marketplace-companion-validate.yml
 
 # Worksite deployment automation is not part of the public package
 .github/workflows/release-production.yml
