@@ -96,4 +96,4 @@ jobs:
             --non-interactive
 
       - name: Confirm Marketplace installation
-        run: forge install list --app-id-override "ari:cloud:ecosystem::app/77b1744e-faac-4db7-9b7d-d066f858fe7c" --json
+        run: forge install list --app-id-override "77b1744e-faac-4db7-9b7d-d066f858fe7c" --json
