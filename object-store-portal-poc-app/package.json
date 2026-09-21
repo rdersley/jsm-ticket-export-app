@@ -1,0 +1,24 @@
+{
+  "name": "nuvriqo-object-store-portal-poc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --check src/index.js",
+    "build": "vite build --config static/portal-ui/vite.config.js"
+  },
+  "dependencies": {
+    "@forge/api": "^6.0.0",
+    "@forge/bridge": "6.3.1",
+    "@forge/object-store": "^1.0.0",
+    "@forge/react": "12.2.0",
+    "@forge/resolver": "^2.0.0",
+    "exceljs": "^4.4.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "vite": "^7.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "latest"
+  }
+}
