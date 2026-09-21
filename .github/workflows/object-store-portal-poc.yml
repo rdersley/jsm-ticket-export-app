@@ -87,10 +87,6 @@ jobs:
         working-directory: object-store-portal-poc-app
         run: npm test
 
-      - name: Build portal UI
-        if: steps.register.outputs.registered != 'true'
-        working-directory: object-store-portal-poc-app
-        run: npm run build
 
       - name: Forge lint
         if: steps.register.outputs.registered != 'true'
