@@ -1,0 +1,99 @@
+name: Clean Nuvriqo Marketplace test install
+
+on:
+  push:
+    branches:
+      - marketplace-release
+    paths:
+      - '.github/workflows/nuvriqo-clean-marketplace-test.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nuvriqo-clean-marketplace-test
+  cancel-in-progress: false
+
+jobs:
+  clean-and-install:
+    runs-on: ubuntu-latest
+    env:
+      FORGE_EMAIL: ${{ secrets.FORGE_EMAIL }}
+      FORGE_API_TOKEN: ${{ secrets.FORGE_API_TOKEN }}
+      SITE: nuvriqo.atlassian.net
+
+    steps:
+      - name: Checkout Marketplace release
+        uses: actions/checkout@v4
+        with:
+          ref: marketplace-release
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Forge CLI
+        run: npm install --global @forge/cli
+
+      - name: Configure Forge CLI
+        run: forge settings set usage-analytics false
+
+      - name: Remove old Excel and Portal test installations from Nuvriqo
+        shell: bash
+        run: |
+          set +e
+
+          APP_IDS=(
+            "ari:cloud:ecosystem::app/1e0f0b2e-20cf-444b-98bb-4d4cd67df86a"
+            "ari:cloud:ecosystem::app/0da2cf9b-f20d-42f0-82df-e9f1645f8495"
+            "ari:cloud:ecosystem::app/77b1744e-faac-4db7-9b7d-d066f858fe7c"
+            "ari:cloud:ecosystem::app/d78ded8d-1d7c-4dc1-87e5-e57f6f2b5ac0"
+            "ari:cloud:ecosystem::app/b0cf5a4e-051d-4def-b091-2ab4120cabaa"
+            "ari:cloud:ecosystem::app/ad79efcb-7234-4d28-9ddb-a0e30a1c5a82"
+          )
+
+          for APP_ID in "${APP_IDS[@]}"; do
+            for ENV in development staging production; do
+              echo "Attempting uninstall: $APP_ID / $ENV / $SITE"
+              printf 'y\n' | forge uninstall \
+                --site "$SITE" \
+                --product jira \
+                --environment "$ENV" \
+                --app-id-override "$APP_ID"
+              echo "Exit code: $?"
+            done
+          done
+
+          exit 0
+
+      - name: Install Marketplace dependencies
+        run: npm install
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+
+      - name: Run Marketplace regression tests
+        run: npm test
+
+      - name: Build Marketplace UI
+        run: npm run build
+
+      - name: Forge lint
+        continue-on-error: true
+        run: forge lint
+
+      - name: Deploy current Marketplace build to development
+        run: forge deploy -e development --approve MAJOR_VERSION_RULE --non-interactive
+
+      - name: Fresh install Marketplace app on Nuvriqo
+        run: |
+          forge install \
+            --site "$SITE" \
+            --product jira \
+            --environment development \
+            --confirm-scopes \
+            --non-interactive
+
+      - name: Confirm Marketplace installation
+        run: forge install list --app-id-override "ari:cloud:ecosystem::app/77b1744e-faac-4db7-9b7d-d066f858fe7c" --json
