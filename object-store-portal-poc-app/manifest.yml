@@ -14,6 +14,7 @@ modules:
   jiraServiceManagement:portalSubheader:
     - key: object-store-poc-portal
       resource: portal-ui
+      render: native
       unlicensedAccess:
         - customer
         - unlicensed
@@ -28,7 +29,7 @@ resources:
   - key: admin-ui
     path: src/admin.jsx
   - key: portal-ui
-    path: static/portal-ui/dist
+    path: src/portal.jsx
 
 permissions:
   scopes:
