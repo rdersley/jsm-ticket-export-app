@@ -1,0 +1,46 @@
+modules:
+  objectStore:
+    - key: report-objects
+      storageClass: standard
+
+  jira:adminPage:
+    - key: object-store-poc-admin
+      resource: admin-ui
+      resolver:
+        function: admin-resolver
+      title: Object Store Portal POC
+      render: native
+
+  jiraServiceManagement:portalSubheader:
+    - key: object-store-poc-portal
+      resource: portal-ui
+      unlicensedAccess:
+        - customer
+        - unlicensed
+
+  function:
+    - key: admin-resolver
+      handler: index.adminHandler
+    - key: object-download
+      handler: index.generateDownloadUrls
+
+resources:
+  - key: admin-ui
+    path: src/admin.jsx
+  - key: portal-ui
+    path: static/portal-ui/dist
+
+permissions:
+  scopes:
+    - read:jira-work
+    - read:field:jira
+    - read:filter:jira
+    - read:servicedesk-request
+    - read:servicedesk.customer:jira-service-management
+    - read:user:jira
+    - storage:app
+
+app:
+  runtime:
+    name: nodejs22.x
+  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
