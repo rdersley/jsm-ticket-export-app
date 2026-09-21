@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "test": "node --check src/index.js",
-    "build": "vite build --config static/portal-ui/vite.config.js"
+    "test": "node --check src/index.js"
   },
   "dependencies": {
     "@forge/api": "^6.0.0",
@@ -12,12 +11,7 @@
     "@forge/object-store": "^3.0.0",
     "@forge/react": "12.2.0",
     "@forge/resolver": "^2.0.0",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "vite": "^7.1.0"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^5.0.0"
+    "react": "18.3.1"
   },
   "description": "Isolated Forge Object Store portal download consent test."
 }
