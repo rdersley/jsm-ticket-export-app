@@ -4,124 +4,284 @@ import { invoke } from '@forge/bridge';
 import './styles.css';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-function unique(values){return [...new Set((values||[]).map(String))]}
+const unique = values => [...new Set((values || []).map(String))];
 
-function App(){
-  const [reports,setReports]=useState([]);
-  const [serviceDesks,setServiceDesks]=useState([]);
-  const [organizations,setOrganizations]=useState([]);
-  const [selected,setSelected]=useState(null);
-  const [customerQuery,setCustomerQuery]=useState('');
-  const [customerResults,setCustomerResults]=useState([]);
-  const [knownUsers,setKnownUsers]=useState({});
-  const [busy,setBusy]=useState(false);
-  const [message,setMessage]=useState('');
-  const [pairing,setPairing]=useState(null);
+function App() {
+  const [reports, setReports] = useState([]);
+  const [serviceDesks, setServiceDesks] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [customerResults, setCustomerResults] = useState([]);
+  const [knownUsers, setKnownUsers] = useState({});
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
 
-  const load=async()=>{
+  const load = async () => {
     setBusy(true);
-    try{
-      const [rows,desks,orgs,pair]=await Promise.all([
+    try {
+      const [rows, desks] = await Promise.all([
         invoke('portal-admin:list'),
-        invoke('portal-admin:service-desks').catch(()=>[]),
-        invoke('portal-admin:organizations').catch(()=>[]),
-        invoke('portal-admin:companion-code').catch(()=>null)
+        invoke('portal-admin:service-desks').catch(() => [])
       ]);
-      setReports(rows||[]);setServiceDesks(desks||[]);setOrganizations(orgs||[]);setPairing(pair||null);
-      if(selected){const fresh=(rows||[]).find(r=>r.id===selected.id);if(fresh)setSelected(fresh)}
-    }catch(e){setMessage(e?.message||'Could not load portal report settings.')}finally{setBusy(false)}
-  };
-  useEffect(()=>{load()},[]);
-
-  const cfg=selected?.config||{};
-  const patch=(key,value)=>setSelected(r=>({...r,config:{...r.config,[key]:value}}));
-  const toggleId=(key,id)=>{
-    const values=new Set(cfg[key]||[]);values.has(String(id))?values.delete(String(id)):values.add(String(id));patch(key,[...values]);
-  };
-  const save=async()=>{setBusy(true);try{const saved=await invoke('portal-admin:save',{reportId:selected.id,config:selected.config});setSelected(r=>({...r,config:saved}));setMessage('Portal access saved.');await load()}catch(e){setMessage(e?.message||'Could not save portal access.')}finally{setBusy(false)}};
-  const searchCustomers=async()=>{
-    const serviceDeskIds=cfg.serviceDeskIds||[];
-    if(!serviceDeskIds.length){setMessage('Select at least one service project first.');return}
-    setBusy(true);try{
-      const results=await invoke('portal-admin:customers',{serviceDeskIds,organizationIds:cfg.organizationIds||[],query:customerQuery})||[];
-      setCustomerResults(results);
-      setKnownUsers(existing=>({...existing,...Object.fromEntries(results.filter(u=>u.accountId).map(u=>[String(u.accountId),u]))}));
-      setMessage(results.length ? `${results.length} matching portal user${results.length===1?'':'s'} found.` : 'No matching portal users found.');
-    }catch(e){setMessage(e?.message||'Could not search portal customers.')}finally{setBusy(false)}
-  };
-  const publish=async()=>{
-    setBusy(true);setMessage(`Generating a portal copy of ${selected.name}…`);let jobId;
-    try{
-      const started=await invoke('portal-admin:publish',{reportId:selected.id});jobId=started.jobId;
-      for(let i=0;i<300;i++){
-        const status=await invoke('portal-admin:job-status',{jobId});
-        if(status?.state==='ready'){setMessage(`Published ${status.issueCount??0} work items to the portal.`);await load();return}
-        if(status?.state==='failed')throw new Error(status.message||'Portal publish failed.');
-        await sleep(2000);
+      setReports(rows || []);
+      setServiceDesks(desks || []);
+      if (selected) {
+        const fresh = (rows || []).find(report => report.id === selected.id);
+        if (fresh) setSelected(fresh);
       }
-      throw new Error('The report is still generating.');
-    }catch(e){setMessage(e?.message||'Could not publish portal report.')}finally{if(jobId)await invoke('portal-admin:job-cleanup',{jobId}).catch(()=>{});setBusy(false)}
-  };
-
-  const rotatePairing=async()=>{
-    setBusy(true);
-    try{
-      const pair=await invoke('portal-admin:companion-rotate');
-      setPairing(pair);
-      setMessage('A new companion setup code has been generated. Reconnect the companion app with this new code.');
-    }catch(e){setMessage(e?.message||'Could not rotate the Portal Reports companion code.')}finally{setBusy(false)}
-  };
-  const copyPairing=async()=>{
-    if(!pairing?.code)return;
-    try{
-      await navigator.clipboard.writeText(pairing.code);
-      setMessage('Companion setup code copied.');
-    }catch{
-      setMessage('Copy the setup code manually from the box below.');
+    } catch (error) {
+      setMessage(error?.message || 'Could not load portal report settings.');
+    } finally {
+      setBusy(false);
     }
   };
 
-  const selectedUsers=useMemo(()=>unique(cfg.userAccountIds||[]),[cfg.userAccountIds]);
-  const selectedOrgs=useMemo(()=>unique(cfg.organizationIds||[]),[cfg.organizationIds]);
+  useEffect(() => { load(); }, []);
 
-  if(selected)return <main>
-    <header><div><button className="link" onClick={()=>setSelected(null)}>← Portal reports</button><div className="eyebrow">Portal access</div><h1>{selected.name}</h1><p>{selected.description||'Control who can see and run this saved Excel report in the JSM customer portal.'}</p></div><div className="actions"><button disabled={busy} onClick={publish}>Generate & publish now</button><button className="primary" disabled={busy} onClick={save}>Save access</button></div></header>
-    {message&&<div className="notice">{message}</div>}
-    <section className="panel">
-      <label className="check"><input type="checkbox" checked={cfg.enabled===true} onChange={e=>patch('enabled',e.target.checked)}/>Publish this report to the JSM customer portal</label>
-      <div className="grid"><label>Portal access<select value={cfg.accessMode||'all'} onChange={e=>patch('accessMode',e.target.value)}><option value="all">All signed-in portal customers in selected service projects</option><option value="selected">Only selected users and organisations</option></select></label><label>Actions<div className="checks"><label><input type="checkbox" checked={cfg.allowDownload!==false} onChange={e=>patch('allowDownload',e.target.checked)}/>Download latest</label><label><input type="checkbox" checked={cfg.allowRun!==false} onChange={e=>patch('allowRun',e.target.checked)}/>Generate on demand</label></div></label></div>
-      <h2>Service projects</h2><p className="help">Choose where this report is available. Leave all unchecked to allow it from any JSM portal where the customer otherwise has access.</p>
-      <div className="options">{serviceDesks.map(d=><label key={d.id}><input type="checkbox" checked={(cfg.serviceDeskIds||[]).includes(String(d.id))} onChange={()=>toggleId('serviceDeskIds',d.id)}/><span>{d.projectName||d.name||`Service project ${d.id}`}</span></label>)}</div>
+  const cfg = selected?.config || {};
+  const patch = (key, value) => setSelected(report => ({
+    ...report,
+    config: { ...report.config, [key]: value }
+  }));
 
-      {cfg.accessMode==='selected'&&<>
-        <h2>Selected portal users</h2><div className="searchRow"><input value={customerQuery} onChange={e=>setCustomerQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();searchCustomers()}}} placeholder="Search name or email"/><button disabled={busy} onClick={searchCustomers}>Search</button></div>
-        {!!selectedUsers.length&&<div className="chips">{selectedUsers.map(id=>{const u=knownUsers[id];return <span key={id}>{u?.displayName||u?.emailAddress||id}<button onClick={()=>toggleId('userAccountIds',id)}>×</button></span>})}</div>}
-        {!!customerResults.length&&<div className="results">{customerResults.map(u=>{
-  const secondary=u.emailAddress||u.email||'Portal customer';
-  return <div key={u.accountId||u.name}><div><strong>{u.displayName||u.name||'Portal customer'}</strong><small>{secondary}</small></div><button disabled={selectedUsers.includes(String(u.accountId))} onClick={()=>toggleId('userAccountIds',u.accountId)}>Add</button></div>
-})}</div>}
-        <h2>Selected organisations</h2><div className="options">{organizations.map(o=><label key={o.id}><input type="checkbox" checked={selectedOrgs.includes(String(o.id))} onChange={()=>toggleId('organizationIds',o.id)}/><span>{o.name}</span></label>)}</div>
-      </>}
-      <div className="info">Portal users must be signed in. Restricted reports are checked against the customer's Atlassian account and JSM organisation memberships before they are listed, generated or downloaded.</div>
-    </section>
-  </main>;
+  const selectedUsers = useMemo(() => unique(cfg.userAccountIds || []), [cfg.userAccountIds]);
+
+  const toggleUser = accountId => {
+    const users = new Set(cfg.userAccountIds || []);
+    const id = String(accountId);
+    users.has(id) ? users.delete(id) : users.add(id);
+    patch('userAccountIds', [...users]);
+  };
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const saved = await invoke('portal-admin:save', {
+        reportId: selected.id,
+        config: selected.config
+      });
+      setSelected(report => ({ ...report, config: saved }));
+      setMessage('Portal delivery settings saved.');
+      await load();
+    } catch (error) {
+      setMessage(error?.message || 'Could not save portal delivery settings.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const searchCustomers = async () => {
+    if (!cfg.serviceDeskId) {
+      setMessage('Choose a service project first.');
+      return;
+    }
+    if (!customerQuery.trim()) {
+      setMessage('Enter a customer name or email address.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const results = await invoke('portal-admin:customers', {
+        serviceDeskId: cfg.serviceDeskId,
+        query: customerQuery
+      }) || [];
+      setCustomerResults(results);
+      setKnownUsers(existing => ({
+        ...existing,
+        ...Object.fromEntries(results.filter(user => user.accountId).map(user => [String(user.accountId), user]))
+      }));
+      setMessage(results.length
+        ? `${results.length} matching portal customer${results.length === 1 ? '' : 's'} found.`
+        : 'No matching portal customers found.');
+    } catch (error) {
+      setMessage(error?.message || 'Could not search portal customers.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const publish = async () => {
+    setBusy(true);
+    setMessage(`Generating and publishing ${selected.name}…`);
+    let jobId;
+
+    try {
+      const saved = await invoke('portal-admin:save', {
+        reportId: selected.id,
+        config: selected.config
+      });
+      setSelected(report => ({ ...report, config: saved }));
+
+      const started = await invoke('portal-admin:publish', { reportId: selected.id });
+      jobId = started.jobId;
+
+      for (let i = 0; i < 300; i += 1) {
+        const status = await invoke('portal-admin:job-status', { jobId });
+        if (status?.state === 'ready' || status?.state === 'ready-with-errors') {
+          const details = (status.deliveries || [])
+            .filter(item => item.ok && item.issueKey)
+            .map(item => item.issueKey)
+            .join(', ');
+          setMessage(
+            `Published ${status.filename || 'Excel report'} to ${status.delivered || 0} customer${status.delivered === 1 ? '' : 's'}` +
+            (details ? ` via ${details}` : '') +
+            (status.failed ? `. ${status.failed} delivery failed.` : '.')
+          );
+          return;
+        }
+        if (status?.state === 'failed') throw new Error(status.message || 'Portal publishing failed.');
+        await sleep(2000);
+      }
+      throw new Error('The report is still generating. Check again shortly.');
+    } catch (error) {
+      setMessage(error?.message || 'Could not publish the report.');
+    } finally {
+      if (jobId) await invoke('portal-admin:job-cleanup', { jobId }).catch(() => {});
+      setBusy(false);
+    }
+  };
+
+  if (selected) {
+    return <main>
+      <header>
+        <div>
+          <button className="link" onClick={() => setSelected(null)}>← Portal reports</button>
+          <div className="eyebrow">JSM delivery</div>
+          <h1>{selected.name}</h1>
+          <p>{selected.description || 'Publish this saved Excel report to selected Jira Service Management customers.'}</p>
+        </div>
+        <div className="actions">
+          <button disabled={busy} onClick={publish}>Generate & publish now</button>
+          <button className="primary" disabled={busy} onClick={save}>Save settings</button>
+        </div>
+      </header>
+
+      {message && <div className="notice">{message}</div>}
+
+      <section className="panel">
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={cfg.enabled === true}
+            onChange={event => patch('enabled', event.target.checked)}
+          />
+          Enable portal delivery for this report
+        </label>
+
+        <h2>Service project</h2>
+        <p className="help">The app creates customer-visible JSM report requests in this service project and attaches the generated XLSX file.</p>
+        <label>
+          Service project
+          <select
+            value={cfg.serviceDeskId || ''}
+            onChange={event => {
+              patch('serviceDeskId', event.target.value);
+              setCustomerResults([]);
+              setCustomerQuery('');
+            }}
+          >
+            <option value="">Choose a service project</option>
+            {serviceDesks.map(desk =>
+              <option key={desk.id} value={String(desk.id)}>{desk.projectName || desk.name || `Service project ${desk.id}`}</option>
+            )}
+          </select>
+        </label>
+
+        <h2>Portal customers</h2>
+        <p className="help">Only customers you add here receive the published workbook. They access it through their normal JSM Requests area, so no app consent prompt is required.</p>
+
+        {!!selectedUsers.length && <div className="chips">
+          {selectedUsers.map(id => {
+            const user = knownUsers[id];
+            return <span key={id}>
+              {user?.displayName || user?.emailAddress || 'Selected portal customer'}
+              <button onClick={() => toggleUser(id)}>×</button>
+            </span>;
+          })}
+        </div>}
+
+        <div className="searchRow">
+          <input
+            value={customerQuery}
+            onChange={event => setCustomerQuery(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                searchCustomers();
+              }
+            }}
+            placeholder="Search portal customer by name or email"
+          />
+          <button disabled={busy || !cfg.serviceDeskId} onClick={searchCustomers}>Search</button>
+        </div>
+
+        {!!customerResults.length && <div className="results">
+          {customerResults.map(user => {
+            const id = String(user.accountId);
+            const added = selectedUsers.includes(id);
+            const secondary = user.emailAddress || 'Portal customer';
+            return <div key={id}>
+              <div>
+                <strong>{user.displayName || 'Portal customer'}</strong>
+                <small>{secondary}</small>
+              </div>
+              <button disabled={added} onClick={() => {
+                setKnownUsers(existing => ({ ...existing, [id]: user }));
+                toggleUser(id);
+              }}>{added ? 'Added' : 'Add'}</button>
+            </div>;
+          })}
+        </div>}
+
+        <div className="info">
+          The report is generated by Forge using the app's Jira permissions, so the workbook can include data the customer cannot browse directly. Only the finished XLSX is deliberately published to the selected JSM customer request.
+        </div>
+      </section>
+    </main>;
+  }
 
   return <main>
-    <header><div><div className="eyebrow">Nuvriqo</div><h1>Portal Reports</h1><p>Publish selected saved Excel reports to Jira Service Management customers without exposing report JQL or template configuration.</p></div></header>
-    {message&&<div className="notice">{message}</div>}
-    <section className="panel companion">
+    <header>
       <div>
-        <h2>Portal Reports Companion</h2>
-        <p className="help">Customers see reports through the free Nuvriqo Portal Reports Companion app. Install the companion on the same Jira site, open its configuration page, and paste this one-time setup code.</p>
-        {pairing?.endpointHost&&<small>Bridge endpoint: {pairing.endpointHost}</small>}
+        <div className="eyebrow">Nuvriqo</div>
+        <h1>Portal Reports</h1>
+        <p>Publish saved Excel reports to Jira Service Management customers while keeping the entire delivery flow inside Atlassian.</p>
       </div>
-      {pairing?.code?<div className="pairingBox">
-        <textarea readOnly value={pairing.code} rows={4}/>
-        <div className="actions"><button onClick={copyPairing}>Copy setup code</button><button disabled={busy} onClick={rotatePairing}>Rotate code</button></div>
-      </div>:<p>Setup code unavailable. Reload this page after the app has been installed.</p>}
+    </header>
+
+    {message && <div className="notice">{message}</div>}
+
+    <section className="panel">
+      <div className="info">
+        Portal delivery uses customer-visible JSM requests and public XLSX attachments. Customers open the report from their normal Requests area, so they are not asked to grant the app access to Atlassian products.
+      </div>
     </section>
-    <section className="panel">{!reports.length?<p>No saved reports found.</p>:reports.map(r=><article className="report" key={r.id}><div><div className="title"><strong>{r.name}</strong><span className={r.config?.enabled?'pill on':'pill'}>{r.config?.enabled?'Published':'Not published'}</span></div><p>{r.description||'Saved Excel report'}</p><small>{r.latest?`Latest portal copy: ${new Date(r.latest.generatedAt).toLocaleString()} · ${r.latest.issueCount??0} work items`:'No portal copy generated yet.'}</small></div><button onClick={()=>setSelected(r)}>Configure</button></article>)}</section>
+
+    <section className="panel">
+      {!reports.length
+        ? <p>No saved reports found.</p>
+        : reports.map(report =>
+          <article className="report" key={report.id}>
+            <div>
+              <div className="title">
+                <strong>{report.name}</strong>
+                <span className={report.config?.enabled ? 'pill on' : 'pill'}>
+                  {report.config?.enabled ? 'Portal delivery enabled' : 'Not enabled'}
+                </span>
+              </div>
+              <p>{report.description || 'Saved Excel report'}</p>
+              <small>
+                {report.config?.serviceDeskId
+                  ? `Service project ${report.config.serviceDeskId} · ${(report.config.userAccountIds || []).length} selected customer${(report.config.userAccountIds || []).length === 1 ? '' : 's'}`
+                  : 'No portal delivery target configured yet.'}
+              </small>
+            </div>
+            <button onClick={() => setSelected(report)}>Configure</button>
+          </article>
+        )}
+    </section>
   </main>;
 }
 
-createRoot(document.getElementById('root')).render(<App/>);
+createRoot(document.getElementById('root')).render(<App />);
