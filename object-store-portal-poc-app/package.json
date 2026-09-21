@@ -9,8 +9,8 @@
   },
   "dependencies": {
     "@forge/api": "^6.0.0",
-    "@forge/bridge": "6.3.1",
-    "@forge/object-store": "^1.0.0",
+    "@forge/bridge": "^7.0.0",
+    "@forge/object-store": "^3.0.0",
     "@forge/react": "12.2.0",
     "@forge/resolver": "^2.0.0",
     "exceljs": "^4.4.0",
