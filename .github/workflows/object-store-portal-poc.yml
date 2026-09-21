@@ -1,0 +1,111 @@
+name: Object Store portal POC
+
+on:
+  push:
+    branches:
+      - object-store-portal-poc
+    paths:
+      - 'object-store-portal-poc-app/**'
+      - '.github/workflows/object-store-portal-poc.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: object-store-portal-poc
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      FORGE_EMAIL: ${{ secrets.FORGE_EMAIL }}
+      FORGE_API_TOKEN: ${{ secrets.FORGE_API_TOKEN }}
+
+    steps:
+      - name: Checkout POC branch
+        uses: actions/checkout@v4
+        with:
+          ref: object-store-portal-poc
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Forge CLI
+        run: npm install --global @forge/cli
+
+      - name: Configure Forge CLI
+        run: forge settings set usage-analytics false
+
+      - name: Register isolated Object Store POC app
+        id: register
+        working-directory: object-store-portal-poc-app
+        shell: bash
+        run: |
+          if grep -q '00000000-0000-0000-0000-000000000000' manifest.yml; then
+            SPACES_JSON="$(forge developer-spaces list --json)"
+            SPACE_ID="$(printf '%s' "$SPACES_JSON" | jq -r '.. | objects | select(has("id")) | .id' | head -n 1)"
+            if [ -z "$SPACE_ID" ] || [ "$SPACE_ID" = "null" ]; then
+              echo "Could not determine Developer Space ID."
+              exit 1
+            fi
+            forge register "Nuvriqo Object Store Portal POC" --accept-terms --developer-space-id "$SPACE_ID"
+            echo "registered=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "registered=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Persist POC app ID
+        if: steps.register.outputs.registered == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add object-store-portal-poc-app/manifest.yml
+          git commit -m "Register Object Store portal POC app"
+          git push origin HEAD:object-store-portal-poc
+
+      - name: Stop after registration
+        if: steps.register.outputs.registered == 'true'
+        run: echo "POC app registered; next run will deploy and install it."
+
+      - name: Install dependencies
+        if: steps.register.outputs.registered != 'true'
+        working-directory: object-store-portal-poc-app
+        run: npm install
+
+      - name: Security audit
+        if: steps.register.outputs.registered != 'true'
+        working-directory: object-store-portal-poc-app
+        run: npm audit --audit-level=high
+
+      - name: Test backend
+        if: steps.register.outputs.registered != 'true'
+        working-directory: object-store-portal-poc-app
+        run: npm test
+
+      - name: Build portal UI
+        if: steps.register.outputs.registered != 'true'
+        working-directory: object-store-portal-poc-app
+        run: npm run build
+
+      - name: Forge lint
+        if: steps.register.outputs.registered != 'true'
+        working-directory: object-store-portal-poc-app
+        continue-on-error: true
+        run: forge lint
+
+      - name: Deploy to development
+        if: steps.register.outputs.registered != 'true'
+        working-directory: object-store-portal-poc-app
+        run: forge deploy -e development --approve MAJOR_VERSION_RULE --non-interactive
+
+      - name: Install or upgrade on Nuvriqo
+        if: steps.register.outputs.registered != 'true'
+        working-directory: object-store-portal-poc-app
+        shell: bash
+        run: |
+          forge install --upgrade --confirm-scopes --non-interactive --site nuvriqo.atlassian.net --product jira -e development ||           forge install --confirm-scopes --non-interactive --site nuvriqo.atlassian.net --product jira -e development
