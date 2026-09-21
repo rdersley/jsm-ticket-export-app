@@ -17,14 +17,21 @@ Create, style, schedule and email professional Excel reports from Jira without J
 - Timezone-aware scheduling
 - Send scheduled XLSX reports through customer-configured Microsoft 365 / Graph or SendGrid
 - View report run history
+- Publish backend-generated Excel reports to selected JSM portal customers through customer-visible JSM requests and attachments
+
+## Portal Reports
+
+Portal Reports remains inside the single Marketplace app.
+
+Admins choose a saved report, a JSM service project and selected portal customers. Forge generates the workbook using the app's Jira permissions and publishes the finished XLSX as a public attachment on a customer-visible JSM request.
+
+The customer-facing portal module is intentionally static and makes no Jira API or Forge resolver calls. This avoids the customer-facing "Allow access" consent prompt while keeping report generation and delivery inside Atlassian.
 
 ## Marketplace / private build separation
 
 This branch is the public Marketplace release line.
 
 It intentionally excludes Nuvriqo's private worksite tooling, including Weekly SD → Hardware reporting, Resolution Repair and customer-specific mappings or deployment configuration.
-
-Portal Reports is included in Marketplace v1 through the free Portal Reports Companion. The main app generates an installation-specific setup code so customers can pair both Marketplace apps without Nuvriqo intervention.
 
 ## Development
 
