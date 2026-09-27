@@ -1,7 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { invoke } from '@forge/bridge';
+import { invoke, view as forgeView } from '@forge/bridge';
+import '@nuvriqo/ui/css';
+import { enableTheme } from '@nuvriqo/ui/theme';
 import './styles.css';
+import '../../nuvriqo-v1.css';
+
+enableTheme(forgeView);
 
 const downloadBase64=(base64,filename)=>{const b=atob(base64);const bytes=new Uint8Array(b.length);for(let i=0;i<b.length;i++)bytes[i]=b.charCodeAt(i);const url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));const a=document.createElement('a');a.href=url;a.download=filename||'jira-report.xlsx';a.click();URL.revokeObjectURL(url)};
 const splitEmails=v=>v.split(',').map(x=>x.trim()).filter(Boolean);
@@ -50,7 +55,7 @@ function App(){
  if(editing)return <Editor report={editing} setReport={setEditing} fields={fields} filters={filters} save={save} cancel={()=>setEditing(null)} busy={busy}/>;
  if(history)return <HistoryView data={history} close={()=>setHistory(null)}/>;
  const totalColumns=reports.reduce((n,r)=>n+(r.template?.columns?.length||0),0);
- return <main><header><div><div className="eyebrow">Nuvriqo</div><h1>Excel Report Manager</h1><p>Create, style, schedule and email professional Jira Excel reports without Automation rules.</p></div><div className="actions"><button onClick={openEmailSettings}>Email settings</button><button className="primary" onClick={create}>+ Create report</button></div></header>{notice&&<div className="notice">{notice}</div>}
+ return <main className="nq-page"><header className="nq-header"><div className="nq-header__brand"><span className="nq-mark" aria-hidden="true">▦</span><div className="nq-header__text"><span className="nq-eyebrow">Nuvriqo</span><h1 className="nq-header__title">Excel Report Manager</h1><p className="nq-header__subtitle">Create, style, schedule and email professional Jira Excel reports without Automation rules.</p></div></div><div className="actions nq-header__meta"><button onClick={openEmailSettings}>Email settings</button><button className="primary" onClick={create}>+ Create report</button></div></header>{notice&&<div className="notice">{notice}</div>}
  <section className="cards"><div className="stat"><strong>{reports.length}</strong><span>Saved reports & templates</span></div><div className="stat"><strong>{reports.filter(r=>r.enabled).length}</strong><span>Active schedules</span></div><div className="stat"><strong>{totalColumns}</strong><span>Configured Excel columns</span></div></section>
  <section className="panel"><div className="sectionHead"><div><h2>Your reports</h2><p>Saved reports also act as reusable templates from Jira Search work items.</p></div></div>{!reports.length?<div className="empty"><h3>No reports yet</h3><p>Create your first Excel report/template.</p><button className="primary" onClick={create}>Create report</button></div>:reports.map(r=><div className="reportCard" key={r.id}><div className="reportMain"><div className="reportTitle"><strong>{r.name}</strong><span className={r.enabled?'pill on':'pill'}>{r.enabled?'Scheduled':'Draft'}</span></div>{r.description&&<p className="reportDescription">{r.description}</p>}<code>{r.source?.jql||'No data source'}</code><div className="reportMeta"><span>{r.template?.columns?.length||0} columns</span><span>Max {r.source?.maxIssues||500} items</span><span>{r.source?.filterId?'Saved filter':'JQL'}</span><span>Updated {fmtDate(r.updatedAt)}</span></div></div><div className="reportDelivery"><strong>{scheduleLabel(r.schedule)}</strong><span>{r.schedule?.timezone||'UTC'}</span><span>{r.delivery?.recipients?.length||0} recipient(s)</span></div><div className="actions reportActions"><button disabled={busy} onClick={()=>run(r)}>Run now</button><button onClick={()=>edit(r)}>Edit</button><button onClick={()=>openHistory(r)}>History</button><button onClick={()=>duplicate(r)}>Duplicate</button><button className="danger" onClick={()=>remove(r)}>Delete</button></div></div>)}</section></main>
 }

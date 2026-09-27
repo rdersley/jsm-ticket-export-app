@@ -1,7 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { invoke } from '@forge/bridge';
+import { invoke, view as forgeView } from '@forge/bridge';
+import '@nuvriqo/ui/css';
+import { enableTheme } from '@nuvriqo/ui/theme';
 import './styles.css';
+import '../../nuvriqo-v1.css';
+
+enableTheme(forgeView);
 
 const downloadBase64 = (base64, filename, mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') => {
   const binary = atob(base64);
@@ -193,14 +198,9 @@ function App() {
     }
   };
 
-  return <main>
-    <header>
-      <div>
-        <div className="eyebrow">Nuvriqo Excel Report Manager</div>
-        <h1>Weekly SD → Hardware Report</h1>
-        <p>Run separate Jira queries for Service Desk demand and Hardware workload, then export one management workbook.</p>
-      </div>
-      <button className="primary" disabled={busy} onClick={generate}>{busy ? 'Generating…' : 'Generate Excel'}</button>
+  return <main className="nq-page">
+    <header className="nq-header"><div className="nq-header__brand"><span className="nq-mark" aria-hidden="true">▦</span><div className="nq-header__text"><span className="nq-eyebrow">Nuvriqo</span><h1 className="nq-header__title">Weekly SD → Hardware Report</h1><p className="nq-header__subtitle">Run separate Jira queries for Service Desk demand and Hardware workload, then export one management workbook.</p></div></div>
+      <div className="nq-header__meta"><button className="primary" disabled={busy} onClick={generate}>{busy ? 'Generating…' : 'Generate Excel'}</button></div>
     </header>
 
     {message && <div className="notice">{message}</div>}

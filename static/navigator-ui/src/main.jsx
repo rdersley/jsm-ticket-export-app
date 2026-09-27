@@ -1,7 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { invoke, view } from '@forge/bridge';
+import '@nuvriqo/ui/css';
+import { enableTheme } from '@nuvriqo/ui/theme';
 import './styles.css';
+import '../../nuvriqo-v1.css';
+
+enableTheme(view);
 
 const downloadBase64 = (base64, filename) => {
   const binary = atob(base64);
@@ -64,10 +69,8 @@ function App() {
     }
   };
 
-  return <main>
-    <div className="eyebrow">Nuvriqo</div>
-    <h1>Export with Excel Report Manager</h1>
-    <p className="lead">Use one of your saved Excel designs with the work items from this Jira search.</p>
+  return <main className="nq-page nq-page--panel">
+    <header className="nq-header nq-header--compact"><div className="nq-header__brand"><span className="nq-mark" aria-hidden="true">▦</span><div className="nq-header__text"><span className="nq-eyebrow">Nuvriqo</span><h1 className="nq-header__title">Export with Excel Report Manager</h1><p className="nq-header__subtitle">Use one of your saved Excel designs with the work items from this Jira search.</p></div></div></header>
 
     {message && <div className="notice">{message}</div>}
 

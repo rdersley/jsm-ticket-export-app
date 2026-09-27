@@ -1,7 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { invoke } from '@forge/bridge';
+import { invoke, view as forgeView } from '@forge/bridge';
+import '@nuvriqo/ui/css';
+import { enableTheme } from '@nuvriqo/ui/theme';
 import './styles.css';
+import '../../nuvriqo-v1.css';
+
+enableTheme(forgeView);
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 function unique(values){return [...new Set((values||[]).map(String))]}
@@ -86,7 +91,7 @@ function App(){
     </section>
   </main>;
 
-  return <main><header><div><div className="eyebrow">Nuvriqo</div><h1>Portal Reports</h1><p>Publish selected saved Excel reports to Jira Service Management customers without exposing report JQL or template configuration.</p></div></header>{message&&<div className="notice">{message}</div>}<section className="panel">{!reports.length?<p>No saved reports found.</p>:reports.map(r=><article className="report" key={r.id}><div><div className="title"><strong>{r.name}</strong><span className={r.config?.enabled?'pill on':'pill'}>{r.config?.enabled?'Published':'Not published'}</span></div><p>{r.description||'Saved Excel report'}</p><small>{r.latest?`Latest portal copy: ${new Date(r.latest.generatedAt).toLocaleString()} · ${r.latest.issueCount??0} work items`:'No portal copy generated yet.'}</small></div><button onClick={()=>setSelected(r)}>Configure</button></article>)}</section></main>;
+  return <main className="nq-page"><header className="nq-header"><div className="nq-header__brand"><span className="nq-mark" aria-hidden="true">▦</span><div className="nq-header__text"><span className="nq-eyebrow">Nuvriqo</span><h1 className="nq-header__title">Portal Reports</h1><p className="nq-header__subtitle">Publish selected saved Excel reports to Jira Service Management customers without exposing report JQL or template configuration.</p></div></div></header>{message&&<div className="notice">{message}</div>}<section className="panel">{!reports.length?<p>No saved reports found.</p>:reports.map(r=><article className="report" key={r.id}><div><div className="title"><strong>{r.name}</strong><span className={r.config?.enabled?'pill on':'pill'}>{r.config?.enabled?'Published':'Not published'}</span></div><p>{r.description||'Saved Excel report'}</p><small>{r.latest?`Latest portal copy: ${new Date(r.latest.generatedAt).toLocaleString()} · ${r.latest.issueCount??0} work items`:'No portal copy generated yet.'}</small></div><button onClick={()=>setSelected(r)}>Configure</button></article>)}</section></main>;
 }
 
 createRoot(document.getElementById('root')).render(<App/>);
