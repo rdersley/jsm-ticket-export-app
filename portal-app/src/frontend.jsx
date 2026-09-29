@@ -210,6 +210,17 @@ const PortalReports = () => {
     await router.open(url);
   };
 
+  // Signed links expire after 10 minutes, so each click asks for a fresh one.
+  const downloadPublished = async report => {
+    try {
+      const { downloadUrl } = await invoke('portal:published-download', { reportId: report.id });
+      if (!downloadUrl) throw new Error('The download link could not be created.');
+      await openDownload(report, downloadUrl);
+    } catch (e) {
+      setStatus(report.id, { kind: 'error', title: 'Download unavailable', text: e?.message || 'The published copy could not be downloaded. Please refresh the page and try again.' });
+    }
+  };
+
   const downloadFiltered = async report => {
     try {
       const { downloadUrl } = await invoke('portal:job-download', { jobId: filteredJobs[report.id] });
@@ -300,7 +311,7 @@ const PortalReports = () => {
           onFilterChange={next => setFilters(current => ({ ...current, [report.id]: next }))}
           onClearFilters={() => setFilters(current => ({ ...current, [report.id]: {} }))}
           hasFilteredCopy={Boolean(filteredJobs[report.id])}
-          onDownload={() => openDownload(report, report.downloadUrl)}
+          onDownload={() => downloadPublished(report)}
           onDownloadFiltered={() => downloadFiltered(report)}
           onGenerate={() => run(report)}
         />
