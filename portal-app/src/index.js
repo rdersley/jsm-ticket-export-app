@@ -50,16 +50,27 @@ resolver.define('portal:list', async ({ context }) => {
     if (!report?.allowDownload || !report?.latest) return report;
     try {
       const link = await bridge('portal:download-link', { reportId: report.id }, context);
-      const bridgeUrl = String(process.env.PORTAL_BRIDGE_URL || '').trim();
-      const token = String(link?.token || '').trim();
-      return { ...report, downloadUrl: bridgeUrl && token ? `${bridgeUrl}?download=${encodeURIComponent(token)}` : '' };
+      return { ...report, downloadUrl: downloadUrlFor(link) };
     } catch {
       return report;
     }
   }));
 });
 
+function downloadUrlFor(link) {
+  const bridgeUrl = String(process.env.PORTAL_BRIDGE_URL || '').trim();
+  const token = String(link?.token || '').trim();
+  return bridgeUrl && token ? `${bridgeUrl}?download=${encodeURIComponent(token)}` : '';
+}
+
+// Date-filtered runs are private to the customer, so they download from the job.
+resolver.define('portal:job-download', async ({ payload, context }) => {
+  const link = await bridge('portal:job-download-link', { jobId: payload?.jobId }, context);
+  return { downloadUrl: downloadUrlFor(link) };
+});
+
 for (const action of [
+  'portal:date-options',
   'portal:run',
   'portal:job-status',
   'portal:job-cleanup',

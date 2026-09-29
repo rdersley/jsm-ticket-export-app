@@ -108,3 +108,75 @@ export async function getIssueChangelog(issueKey, maxItems = 500) {
 
   return histories.slice(0, maxItems);
 }
+
+
+// Fields a report creator can offer as Portal Reports customer filters.
+const SYSTEM_DATE_FIELDS = { created: 'created', updated: 'updated', resolutiondate: 'resolved', duedate: 'due' };
+const SYSTEM_CHOICE_FIELDS = ['status', 'priority', 'resolution', 'issuetype'];
+const CHOICE_CUSTOM_TYPES = ['select', 'multiselect', 'radiobuttons', 'multicheckboxes']
+  .map(type => `com.atlassian.jira.plugin.system.customfieldtypes:${type}`);
+
+export async function listFilterableFields() {
+  const response = await api.asApp().requestJira(route`/rest/api/3/field`);
+  const fields = await jsonOrThrow(response, 'Loading Jira fields');
+  const dateFields = [];
+  const choiceFields = [];
+  for (const f of fields) {
+    if (!f?.id || !f?.name) continue;
+    const type = f.schema?.type;
+    if (SYSTEM_DATE_FIELDS[f.id]) dateFields.push({ id: SYSTEM_DATE_FIELDS[f.id], name: f.name, custom: false });
+    else if (f.custom && (type === 'date' || type === 'datetime')) dateFields.push({ id: f.id, name: f.name, custom: true });
+    else if (SYSTEM_CHOICE_FIELDS.includes(f.id)) choiceFields.push({ id: f.id, name: f.name, custom: false });
+    else if (f.custom && CHOICE_CUSTOM_TYPES.includes(f.schema?.custom)) choiceFields.push({ id: f.id, name: f.name, custom: true });
+  }
+  const byName = (a, b) => Number(a.custom) - Number(b.custom) || a.name.localeCompare(b.name);
+  return { dateFields: dateFields.sort(byName), choiceFields: choiceFields.sort(byName) };
+}
+
+async function pagedValues(path, label) {
+  const values = [];
+  let startAt = 0;
+  for (let page = 0; page < 20; page += 1) {
+    const response = await api.asApp().requestJira(path(startAt));
+    const data = await jsonOrThrow(response, label);
+    const batch = data.values || [];
+    values.push(...batch);
+    if (data.isLast !== false || !batch.length) break;
+    startAt += batch.length;
+  }
+  return values;
+}
+
+/** Selectable values for a filterable choice field, as [{ id, label }]. */
+export async function listFieldValues(fieldId) {
+  const id = String(fieldId || '');
+  let values;
+  if (id === 'status') {
+    const data = await jsonOrThrow(await api.asApp().requestJira(route`/rest/api/3/status`), 'Loading statuses');
+    values = data.map(s => ({ id: s.id, label: s.name }));
+  } else if (id === 'priority') {
+    values = (await pagedValues(startAt => route`/rest/api/3/priority/search?startAt=${startAt}&maxResults=100`, 'Loading priorities'))
+      .map(p => ({ id: p.id, label: p.name }));
+  } else if (id === 'resolution') {
+    values = (await pagedValues(startAt => route`/rest/api/3/resolution/search?startAt=${startAt}&maxResults=100`, 'Loading resolutions'))
+      .map(r => ({ id: r.id, label: r.name }));
+  } else if (id === 'issuetype') {
+    const data = await jsonOrThrow(await api.asApp().requestJira(route`/rest/api/3/issuetype`), 'Loading work types');
+    values = data.map(t => ({ id: t.id, label: t.name }));
+  } else if (/^customfield_\d+$/.test(id)) {
+    const contexts = await pagedValues(startAt => route`/rest/api/3/field/${id}/context?startAt=${startAt}&maxResults=50`, 'Loading field contexts');
+    values = [];
+    for (const context of contexts) {
+      const options = await pagedValues(
+        startAt => route`/rest/api/3/field/${id}/context/${context.id}/option?startAt=${startAt}&maxResults=100`,
+        'Loading field options'
+      );
+      values.push(...options.filter(o => !o.disabled && !o.optionId).map(o => ({ id: o.id, label: o.value })));
+    }
+  } else {
+    throw new Error('That field cannot be used as a portal filter.');
+  }
+  const seen = new Map();
+  for (const v of values) if (v?.id && !seen.has(String(v.id))) seen.set(String(v.id), { id: String(v.id), label: String(v.label || v.id) });
+  return [...seen.values()].sort((a, b) => a.label.localeCompare(b.label));
+}
