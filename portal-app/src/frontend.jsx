@@ -14,6 +14,15 @@ const cardStyle = xcss({
   borderRadius: 'border.radius.200',
   padding: 'space.200'
 });
+// Fixed widths stop the pickers shrinking to fit "Any", which squeezed the
+// option list. Choice fields get more room for "Parent › Child" labels.
+const fieldStyle = xcss({ width: '200px' });
+const wideFieldStyle = xcss({ width: '300px' });
+const Field = ({ wide, children }) => (
+  <Box xcss={wide ? wideFieldStyle : fieldStyle}>
+    <Stack space="space.050">{children}</Stack>
+  </Box>
+);
 const panelStyle = xcss({
   backgroundColor: 'elevation.surface.sunken',
   borderRadius: 'border.radius.100',
@@ -61,34 +70,34 @@ const FilterControls = ({ reportId, options, state, onChange }) => {
   return (
     <Inline space="space.200" shouldWrap alignBlock="end">
       {options.dateFields?.length ? (
-        <Stack space="space.050">
+        <Field>
           <Label labelFor={`date-field-${reportId}`}>Date</Label>
           <Select inputId={`date-field-${reportId}`} options={dateOptions} value={field} onChange={o => update({ field: o?.value || '' })} />
-        </Stack>
+        </Field>
       ) : null}
       {field.value ? (
-        <Stack space="space.050">
+        <Field>
           <Label labelFor={`date-range-${reportId}`}>Range</Label>
           <Select inputId={`date-range-${reportId}`} options={presetOptions} value={preset} onChange={o => update({ preset: o?.value || 'last30' })} />
-        </Stack>
+        </Field>
       ) : null}
       {field.value && preset?.value === 'custom' ? (
         <>
-          <Stack space="space.050">
+          <Field>
             <Label labelFor={`date-from-${reportId}`}>From</Label>
             <DatePicker id={`date-from-${reportId}`} value={state?.from || ''} onChange={value => update({ from: value || '' })} />
-          </Stack>
-          <Stack space="space.050">
+          </Field>
+          <Field>
             <Label labelFor={`date-to-${reportId}`}>To</Label>
             <DatePicker id={`date-to-${reportId}`} value={state?.to || ''} onChange={value => update({ to: value || '' })} />
-          </Stack>
+          </Field>
         </>
       ) : null}
       {(options.choices || []).map(choice => {
         const values = choice.values.map(v => ({ label: v.label, value: v.id }));
         const picked = state?.choices?.[choice.id] || [];
         return (
-          <Stack key={choice.id} space="space.050">
+          <Field key={choice.id} wide>
             <Label labelFor={`choice-${reportId}-${choice.id}`}>{choice.label}</Label>
             <Select
               inputId={`choice-${reportId}-${choice.id}`}
@@ -98,7 +107,7 @@ const FilterControls = ({ reportId, options, state, onChange }) => {
               value={values.filter(v => picked.includes(v.value))}
               onChange={selected => setChoice(choice.id, (selected || []).map(o => o.value))}
             />
-          </Stack>
+          </Field>
         );
       })}
     </Inline>
