@@ -4,7 +4,9 @@ import { Queue } from '@forge/events';
 import { kvs } from '@forge/kvs';
 import { listReports, getReport } from './services/reportStore.js';
 import { runReport } from './services/runner.js';
-import { applyDateFilter, describeDateFilter } from './services/dateFilter.js';
+import { applyClauses } from './services/dateFilter.js';
+import { normalizeFilterConfig, resolveCustomerFilters } from './services/portalFilters.js';
+import { listFilterableFields, listFieldValues } from './services/jira.js';
 
 const resolver = new Resolver();
 const queue = new Queue({ key: 'portal-report-queue' });
@@ -36,6 +38,7 @@ function normalizeConfig(reportId, config = {}) {
     organizationAccountIds: cleanIds(config.organizationAccountIds),
     allowRun: config.allowRun !== false,
     allowDownload: config.allowDownload !== false,
+    filters: normalizeFilterConfig(config.filters),
     updatedAt: new Date().toISOString()
   };
 }
@@ -240,10 +243,10 @@ const safeFilePart = text => String(text || '').replace(/[<>:"/\\|?*]+/g, '-').t
 
 // Date-filtered customer runs stay private to the job and never replace the
 // published copy that other customers download.
-async function runFilteredJob(report, jobId, dateFilter) {
+async function runFilteredJob(report, jobId, filters) {
   const filtered = structuredClone(report);
-  filtered.source = { ...(filtered.source || {}), jql: applyDateFilter(report.source?.jql, dateFilter) };
-  const label = describeDateFilter(dateFilter);
+  filtered.source = { ...(filtered.source || {}), jql: applyClauses(report.source?.jql, filters.clauses) };
+  const label = (filters.labels || []).join(', ').slice(0, 120);
   const workbook = filtered.template?.workbook;
   if (workbook) workbook.subtitle = [workbook.subtitle, label].filter(Boolean).join(' · ');
   const result = await runReport(filtered, { delivery: false, history: true, mode: 'portal-filtered' });
@@ -257,9 +260,11 @@ async function runFilteredJob(report, jobId, dateFilter) {
 
 export async function portalWorker(event) {
   const { jobId, reportId, ownerAccountId, adminPublish = false } = event.body || {};
-  // Validated when queued; applyDateFilter re-checks it inside the try below.
-  const dateFilter = adminPublish ? null : (event.body?.dateFilter || null);
   if (!jobId || !reportId || !ownerAccountId) return;
+  // Clauses were built and validated from the report's filter settings when
+  // the job was queued. Jobs queued before per-report filters carry dateFilter.
+  const legacyDateFilter = adminPublish ? null : event.body?.dateFilter;
+  let filters = adminPublish ? null : (event.body?.filters || null);
 
   const started = Date.now();
   const existing = await kvs.get(jobKey(jobId));
@@ -276,9 +281,12 @@ export async function portalWorker(event) {
   try {
     const report = await getReport(reportId);
     if (!report) throw new Error('Report not found.');
+    if (!filters && legacyDateFilter) filters = resolveCustomerFilters(legacyDateFilter, null);
     let latest;
-    if (dateFilter) {
-      latest = await runFilteredJob(report, jobId, dateFilter);
+    // A customer's filtered run must never replace the published copy.
+    if (filters || legacyDateFilter) {
+      if (!filters?.clauses?.length) throw new Error('The selected filters could not be applied.');
+      latest = await runFilteredJob(report, jobId, filters);
     } else {
       const result = await runReport(report, { delivery: false, history: true, mode: adminPublish ? 'portal-publish' : 'portal' });
       latest = await writeLatest(report, result.workbookBase64 || '', result.entry);
@@ -294,7 +302,7 @@ export async function portalWorker(event) {
       reportId,
       ownerAccountId,
       adminPublish,
-      dateFilter,
+      filters,
       state: 'ready',
       filename: latest.filename,
       chunkCount: latest.chunkCount,
@@ -310,7 +318,7 @@ export async function portalWorker(event) {
       reportId,
       ownerAccountId,
       adminPublish,
-      dateFilter,
+      filters,
       state: 'failed',
       message: error?.message || 'Portal report generation failed.',
       durationMs: Date.now() - started,
@@ -469,6 +477,8 @@ resolver.define('portal-admin:customers', async ({ payload, context }) => {
     .sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || '')))
     .slice(0, 100);
 });
+resolver.define('portal-admin:filter-fields', async ({ context }) => { await requireAdmin(context); return listFilterableFields(); });
+resolver.define('portal-admin:field-values', async ({ payload, context }) => { await requireAdmin(context); return listFieldValues(payload.fieldId); });
 resolver.define('portal-admin:organizations', async ({ context }) => {
   await requireAdmin(context);
   const response = await api.asApp().requestJira(route`/rest/servicedeskapi/organization?limit=100`, { headers: { Accept: 'application/json' } });
