@@ -3,6 +3,7 @@ import api, { route } from '@forge/api';
 import { Queue } from '@forge/events';
 import { kvs } from '@forge/kvs';
 import { listReports, getReport } from './services/reportStore.js';
+import { normalizeDateFilter, DATE_FIELDS, DATE_PRESETS } from './services/dateFilter.js';
 
 const resolver = new Resolver();
 const queue = new Queue({ key: 'portal-report-queue' });
@@ -11,12 +12,14 @@ const JOB_PREFIX = 'portal:job:';
 const JOB_CHUNK_PREFIX = 'portal:job:chunk:';
 const LATEST_PREFIX = 'portal:latest:';
 const LATEST_CHUNK_PREFIX = 'portal:latest:chunk:';
+const FILTERED_JOB_PREFIX = 'portal:filtered-job:';
 
 const configKey = id => `${CONFIG_PREFIX}${id}`;
 const jobKey = id => `${JOB_PREFIX}${id}`;
 const jobChunkKey = (id, index) => `${JOB_CHUNK_PREFIX}${id}:${index}`;
 const latestKey = id => `${LATEST_PREFIX}${id}`;
 const latestChunkKey = (id, index) => `${LATEST_CHUNK_PREFIX}${id}:${index}`;
+const filteredJobKey = (accountId, reportId) => `${FILTERED_JOB_PREFIX}${accountId}:${reportId}`;
 
 function accountIdFrom(context) {
   const accountId = String(context?.accountId || '').trim();
@@ -111,12 +114,20 @@ async function listPortalReports(context) {
   return visible;
 }
 
-async function startJob(reportId, context) {
+async function startJob(reportId, context, rawDateFilter) {
   const report = await getReport(reportId);
   if (!report) throw new Error('Report not found.');
   const ownerAccountId = accountIdFrom(context);
   const access = await isAllowed(reportId, context);
   if (!access.allowed || access.config.allowRun === false) throw new Error('You do not have permission to run this report.');
+  const dateFilter = normalizeDateFilter(rawDateFilter);
+
+  // A date-filtered run is private to the customer, so it is kept as a job
+  // rather than replacing the published copy. Keep only their latest one.
+  if (dateFilter) {
+    const previousJobId = await kvs.get(filteredJobKey(ownerAccountId, reportId));
+    if (previousJobId) await removeJob(previousJobId).catch(() => {});
+  }
 
   const jobId = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -126,10 +137,12 @@ async function startJob(reportId, context) {
     ownerAccountId,
     state: 'queued',
     adminPublish: false,
+    dateFilter,
     createdAt: now,
     updatedAt: now
   });
-  await queue.push({ body: { jobId, reportId, ownerAccountId, adminPublish: false } });
+  if (dateFilter) await kvs.set(filteredJobKey(ownerAccountId, reportId), jobId);
+  await queue.push({ body: { jobId, reportId, ownerAccountId, adminPublish: false, dateFilter } });
   return { jobId };
 }
 
@@ -141,14 +154,28 @@ async function ownedJob(jobId, context) {
   return job;
 }
 
-async function cleanupJob(jobId, context) {
-  const job = await ownedJob(jobId, context);
-  if (!job) return { ok: true };
+async function removeJob(jobId, knownJob = null) {
+  const job = knownJob || await kvs.get(jobKey(jobId));
+  if (!job) return;
   for (let i = 0; i < Number(job.chunkCount || 0); i += 1) {
     await kvs.delete(jobChunkKey(jobId, i));
   }
   await kvs.delete(jobKey(jobId));
+}
+
+async function cleanupJob(jobId, context) {
+  const job = await ownedJob(jobId, context);
+  if (!job) return { ok: true };
+  await removeJob(jobId, job);
   return { ok: true };
+}
+
+async function readyOwnedJob(jobId, context) {
+  const job = await ownedJob(jobId, context);
+  if (!job || job.state !== 'ready') throw new Error('This report is no longer available. Please generate it again.');
+  const access = await isAllowed(job.reportId, context);
+  if (!access.allowed || access.config.allowRun === false) throw new Error('You do not have permission to download this report.');
+  return job;
 }
 
 export async function handlePortalAction(action, payload = {}, context = {}) {
@@ -156,7 +183,19 @@ export async function handlePortalAction(action, payload = {}, context = {}) {
     case 'portal:list':
       return listPortalReports(context);
     case 'portal:run':
-      return startJob(payload.reportId, context);
+      return startJob(payload.reportId, context, payload.dateFilter);
+    case 'portal:date-options':
+      return { fields: DATE_FIELDS.map(({ id, label }) => ({ id, label })), presets: DATE_PRESETS };
+    case 'portal:job-meta': {
+      const job = await readyOwnedJob(payload.jobId, context);
+      return { jobId: job.jobId, reportId: job.reportId, filename: job.filename, chunkCount: job.chunkCount, issueCount: job.issueCount };
+    }
+    case 'portal:job-chunk': {
+      await readyOwnedJob(payload.jobId, context);
+      const chunk = await kvs.get(jobChunkKey(payload.jobId, Number(payload.index)));
+      if (typeof chunk !== 'string') throw new Error('Report data is no longer available.');
+      return chunk;
+    }
     case 'portal:job-status':
       return (await ownedJob(payload.jobId, context)) || { state: 'missing' };
     case 'portal:job-cleanup':
@@ -179,7 +218,7 @@ export async function handlePortalAction(action, payload = {}, context = {}) {
 }
 
 resolver.define('portal:list', ({ context }) => listPortalReports(context));
-resolver.define('portal:run', ({ payload, context }) => startJob(payload.reportId, context));
+resolver.define('portal:run', ({ payload, context }) => startJob(payload.reportId, context, payload.dateFilter));
 resolver.define('portal:job-status', async ({ payload, context }) => (await ownedJob(payload.jobId, context)) || { state: 'missing' });
 resolver.define('portal:job-cleanup', ({ payload, context }) => cleanupJob(payload.jobId, context));
 resolver.define('portal:latest-meta', async ({ payload, context }) => {
