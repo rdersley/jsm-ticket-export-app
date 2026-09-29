@@ -1,9 +1,24 @@
 import React, { useEffect, useState } from 'react';
-import ForgeReconciler, { Button, DatePicker, Heading, Inline, Label, Lozenge, Select, Spinner, Stack, Text } from '@forge/react';
+import ForgeReconciler, {
+  Box, Button, DatePicker, EmptyState, Heading, Inline, Label, Lozenge, SectionMessage, Select, Spinner, Stack, Text, xcss
+} from '@forge/react';
 import { invoke, router } from '@forge/bridge';
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const NO_DATE_FILTER = { label: 'All dates', value: '' };
+
+// Nuvriqo UI Kit card and inner panel (tokens only, so dark mode works).
+const cardStyle = xcss({
+  backgroundColor: 'elevation.surface.raised',
+  boxShadow: 'elevation.shadow.raised',
+  borderRadius: 'border.radius.200',
+  padding: 'space.200'
+});
+const panelStyle = xcss({
+  backgroundColor: 'elevation.surface.sunken',
+  borderRadius: 'border.radius.100',
+  padding: 'space.150'
+});
 
 // Turns a card's picker state into the filters the backend expects, or null.
 const selectionFrom = state => {
@@ -19,15 +34,17 @@ const selectionFrom = state => {
 
 // Downloads open the app's download page, which Jira confirms in a popup.
 const POPUP_HINT = 'Click Continue in the Atlassian popup to start the download.';
-const workItems = count => (count != null ? ` · ${count} work items` : '');
+const count = n => (n != null ? Number(n).toLocaleString() : null);
+const workItems = n => (n != null ? ` · ${count(n)} work items` : '');
+const when = iso => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 const elapsed = ms => {
   const seconds = Math.max(0, Math.round(ms / 1000));
   return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`;
 };
-const progressMessage = (name, state, ms) => {
-  if (state === 'queued') return `Waiting to start ${name}… (${elapsed(ms)})`;
+const progressMessage = (state, ms) => {
+  if (state === 'queued') return `Waiting to start… (${elapsed(ms)})`;
   const hint = ms > 20000 ? ' Large reports can take a few minutes. Keep this page open.' : '';
-  return `Building ${name}… ${elapsed(ms)} so far.${hint}`;
+  return `Building your report… ${elapsed(ms)} so far.${hint}`;
 };
 
 const hasFilters = options => Boolean(options?.dateFields?.length || options?.choices?.length);
@@ -45,13 +62,13 @@ const FilterControls = ({ reportId, options, state, onChange }) => {
     <Inline space="space.200" shouldWrap alignBlock="end">
       {options.dateFields?.length ? (
         <Stack space="space.050">
-          <Label labelFor={`date-field-${reportId}`}>Filter by date</Label>
+          <Label labelFor={`date-field-${reportId}`}>Date</Label>
           <Select inputId={`date-field-${reportId}`} options={dateOptions} value={field} onChange={o => update({ field: o?.value || '' })} />
         </Stack>
       ) : null}
       {field.value ? (
         <Stack space="space.050">
-          <Label labelFor={`date-range-${reportId}`}>Date range</Label>
+          <Label labelFor={`date-range-${reportId}`}>Range</Label>
           <Select inputId={`date-range-${reportId}`} options={presetOptions} value={preset} onChange={o => update({ preset: o?.value || 'last30' })} />
         </Stack>
       ) : null}
@@ -88,31 +105,108 @@ const FilterControls = ({ reportId, options, state, onChange }) => {
   );
 };
 
+// Per-report feedback: a spinner while working, SectionMessage otherwise.
+const ReportStatus = ({ status }) => {
+  if (!status) return null;
+  if (status.kind === 'progress') {
+    return (
+      <Inline space="space.100" alignBlock="center">
+        <Spinner size="small" />
+        <Text color="color.text.subtle">{status.text}</Text>
+      </Inline>
+    );
+  }
+  const appearance = status.kind === 'error' ? 'error' : status.kind === 'success' ? 'success' : 'information';
+  return (
+    <SectionMessage appearance={appearance} title={status.title}>
+      <Text>{status.text}</Text>
+    </SectionMessage>
+  );
+};
+
+const ReportCard = ({ report, busy, status, filterState, onFilterChange, onDownload, onDownloadFiltered, hasFilteredCopy, onGenerate, onClearFilters }) => {
+  const selection = selectionFrom(filterState);
+  const canDownload = report.allowDownload && report.latest && report.downloadUrl;
+  const published = report.latest
+    ? `Published ${when(report.latest.generatedAt)}${workItems(report.latest.issueCount)}`
+    : 'No published copy yet.';
+
+  return (
+    <Box xcss={cardStyle}>
+      <Stack space="space.150">
+        <Inline spread="space-between" alignBlock="start" space="space.100">
+          <Stack space="space.050">
+            <Heading size="small">{report.name}</Heading>
+            {report.description ? <Text color="color.text.subtle">{report.description}</Text> : null}
+          </Stack>
+          {report.latest ? <Lozenge appearance="success">Published</Lozenge> : <Lozenge>Not published</Lozenge>}
+        </Inline>
+
+        <Text size="small" color="color.text.subtlest">{published}</Text>
+
+        {canDownload || hasFilteredCopy ? (
+          <Inline space="space.100" shouldWrap>
+            {canDownload ? <Button appearance="primary" onClick={onDownload}>Download Excel</Button> : null}
+            {hasFilteredCopy && !busy ? <Button onClick={onDownloadFiltered}>Download filtered copy</Button> : null}
+          </Inline>
+        ) : null}
+
+        <ReportStatus status={status} />
+
+        {report.allowRun ? (
+          <Box xcss={panelStyle}>
+            <Stack space="space.150">
+              <Stack space="space.050">
+                <Text weight="bold">Generate a fresh copy</Text>
+                <Text size="small" color="color.text.subtle">
+                  {hasFilters(report.filters)
+                    ? 'Optionally narrow it down first. A filtered copy is just for you and does not replace the published one.'
+                    : 'Builds the report again with the latest data.'}
+                </Text>
+              </Stack>
+              {hasFilters(report.filters) ? (
+                <FilterControls reportId={report.id} options={report.filters} state={filterState} onChange={onFilterChange} />
+              ) : null}
+              <Inline space="space.100" alignBlock="center">
+                <Button appearance={canDownload ? 'default' : 'primary'} isDisabled={busy} onClick={onGenerate}>
+                  {busy ? 'Generating…' : selection ? 'Generate filtered report' : 'Generate fresh report'}
+                </Button>
+                {selection && !busy ? <Button appearance="subtle" onClick={onClearFilters}>Clear filters</Button> : null}
+              </Inline>
+            </Stack>
+          </Box>
+        ) : null}
+      </Stack>
+    </Box>
+  );
+};
+
 const PortalReports = () => {
   const [reports, setReports] = useState(null);
+  const [listError, setListError] = useState('');
   const [busy, setBusy] = useState('');
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [statuses, setStatuses] = useState({});
   const [filters, setFilters] = useState({});
   // Latest private (filtered) copy per report, so it can be downloaded again.
   const [filteredJobs, setFilteredJobs] = useState({});
 
+  const setStatus = (reportId, status) => setStatuses(current => ({ ...current, [reportId]: status }));
+
   const refresh = async () => {
-    setError('');
+    setListError('');
     try {
       const items = await invoke('portal:list', {});
       setReports(Array.isArray(items) ? items : []);
     } catch (e) {
       setReports([]);
-      setError(e?.message || String(e));
+      setListError(e?.message || String(e));
     }
   };
 
   useEffect(() => { refresh(); }, []);
 
   const openDownload = async (report, url) => {
-    setError('');
-    setMessage(`Opening ${report.name}. ${POPUP_HINT}`);
+    setStatus(report.id, { kind: 'info', title: 'Opening download', text: POPUP_HINT });
     await router.open(url);
   };
 
@@ -122,7 +216,7 @@ const PortalReports = () => {
       if (!downloadUrl) throw new Error('The download link could not be created.');
       await openDownload(report, downloadUrl);
     } catch (e) {
-      setError(e?.message || 'This filtered copy is no longer available. Please generate it again.');
+      setStatus(report.id, { kind: 'error', title: 'Download unavailable', text: e?.message || 'This filtered copy is no longer available. Please generate it again.' });
       setFilteredJobs(current => ({ ...current, [report.id]: '' }));
     }
   };
@@ -131,8 +225,7 @@ const PortalReports = () => {
     const selection = selectionFrom(filters[report.id]);
     const started = Date.now();
     setBusy(report.id);
-    setError('');
-    setMessage(progressMessage(report.name, 'queued', 0));
+    setStatus(report.id, { kind: 'progress', text: progressMessage('queued', 0) });
     let jobId = '';
     try {
       const queued = await invoke('portal:run', { reportId: report.id, filters: selection });
@@ -150,32 +243,32 @@ const PortalReports = () => {
           const { downloadUrl } = await invoke('portal:job-download', { jobId: readyJobId });
           if (!downloadUrl) throw new Error('The download link could not be created.');
           setBusy('');
-          setMessage(`${report.name} is ready${workItems(status.issueCount)}. ${POPUP_HINT}`);
+          setStatus(report.id, { kind: 'success', title: `Ready${workItems(status.issueCount)}`, text: POPUP_HINT });
           await router.open(downloadUrl);
           return;
         }
         if (status?.state === 'ready') {
-          setMessage(`${report.name} is ready${workItems(status.issueCount)}.`);
           await invoke('portal:job-cleanup', { jobId }).catch(() => {});
           const items = await invoke('portal:list', {}).catch(() => []);
           setReports(Array.isArray(items) ? items : []);
           const fresh = Array.isArray(items) ? items.find(item => item.id === report.id) : null;
+          setBusy('');
           if (fresh?.downloadUrl) {
-            setBusy('');
-            setMessage(`${report.name} is ready${workItems(status.issueCount)}. ${POPUP_HINT}`);
+            setStatus(report.id, { kind: 'success', title: `Ready${workItems(status.issueCount)}`, text: POPUP_HINT });
             await router.open(fresh.downloadUrl);
+          } else {
+            setStatus(report.id, { kind: 'success', title: `Ready${workItems(status.issueCount)}`, text: 'The published copy has been updated.' });
           }
           return;
         }
         if (status?.state === 'failed') throw new Error(status.message || 'Report generation failed.');
         if (status?.state === 'missing') throw new Error('The report job could not be found.');
-        setMessage(progressMessage(report.name, status?.state, Date.now() - started));
+        setStatus(report.id, { kind: 'progress', text: progressMessage(status?.state, Date.now() - started) });
         await wait(2000);
       }
-      throw new Error(`${report.name} is still generating after ${elapsed(Date.now() - started)}. Try again later, or add a date filter to make the report smaller.`);
+      throw new Error(`Still generating after ${elapsed(Date.now() - started)}. Try again later, or add a date filter to make the report smaller.`);
     } catch (e) {
-      setError(e?.message || String(e));
-      setMessage('');
+      setStatus(report.id, { kind: 'error', title: 'The report could not be generated', text: e?.message || String(e) });
       if (jobId) await invoke('portal:job-cleanup', { jobId }).catch(() => {});
     } finally {
       setBusy('');
@@ -183,54 +276,34 @@ const PortalReports = () => {
   };
 
   return (
-    <Stack space="space.300">
-      <Stack space="space.100">
-        <Heading size="small">Reports</Heading>
-        <Text>Download reports published for you, or generate a fresh copy when enabled.</Text>
+    <Stack space="space.200">
+      <Stack space="space.050">
+        <Heading size="medium">Reports</Heading>
+        <Text color="color.text.subtle">Download the latest published copy, or generate a fresh one filtered to what you need.</Text>
       </Stack>
 
-      {message ? <Text>{message}</Text> : null}
-      {error ? <Text>{error}</Text> : null}
-      {reports === null ? <Stack space="space.100"><Spinner /><Text>Loading your available reports…</Text></Stack> : null}
-      {reports !== null && reports.length === 0 ? <Text>No portal reports are currently available for your account.</Text> : null}
+      {listError ? <SectionMessage appearance="error" title="Reports could not be loaded"><Text>{listError}</Text></SectionMessage> : null}
+      {reports === null ? (
+        <Inline space="space.100" alignBlock="center"><Spinner size="medium" /><Text>Loading your reports…</Text></Inline>
+      ) : null}
+      {reports !== null && reports.length === 0 && !listError ? (
+        <EmptyState header="No reports yet" description="Reports shared with you by the service desk will appear here." />
+      ) : null}
 
       {reports?.map(report => (
-        <Stack key={report.id} space="space.100">
-          <Inline space="space.100" alignBlock="center">
-            <Heading size="small">{report.name}</Heading>
-            {report.latest ? <Lozenge appearance="success">Published</Lozenge> : <Lozenge appearance="default">No published copy</Lozenge>}
-          </Inline>
-          {report.description ? <Text>{report.description}</Text> : null}
-          {report.latest ? <Text>Latest: {new Date(report.latest.generatedAt).toLocaleString()}{report.latest.issueCount != null ? ` · ${report.latest.issueCount} work items` : ''}</Text> : null}
-
-          {report.allowDownload && report.latest && report.downloadUrl ? (
-            <Inline space="space.100">
-              <Button appearance="primary" onClick={() => openDownload(report, report.downloadUrl)}>
-                Download Excel
-              </Button>
-            </Inline>
-          ) : null}
-
-          {report.allowRun && hasFilters(report.filters) ? (
-            <FilterControls
-              reportId={report.id}
-              options={report.filters}
-              state={filters[report.id]}
-              onChange={next => setFilters(current => ({ ...current, [report.id]: next }))}
-            />
-          ) : null}
-
-          {report.allowRun ? (
-            <Inline space="space.100">
-              <Button appearance="primary" isDisabled={busy === report.id} onClick={() => run(report)}>
-                {busy === report.id ? 'Generating…' : selectionFrom(filters[report.id]) ? 'Generate filtered report' : 'Generate fresh report'}
-              </Button>
-              {filteredJobs[report.id] && busy !== report.id ? (
-                <Button onClick={() => downloadFiltered(report)}>Download filtered copy</Button>
-              ) : null}
-            </Inline>
-          ) : null}
-        </Stack>
+        <ReportCard
+          key={report.id}
+          report={report}
+          busy={busy === report.id}
+          status={statuses[report.id]}
+          filterState={filters[report.id]}
+          onFilterChange={next => setFilters(current => ({ ...current, [report.id]: next }))}
+          onClearFilters={() => setFilters(current => ({ ...current, [report.id]: {} }))}
+          hasFilteredCopy={Boolean(filteredJobs[report.id])}
+          onDownload={() => openDownload(report, report.downloadUrl)}
+          onDownloadFiltered={() => downloadFiltered(report)}
+          onGenerate={() => run(report)}
+        />
       ))}
     </Stack>
   );

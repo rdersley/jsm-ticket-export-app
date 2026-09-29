@@ -118,3 +118,52 @@ test('id-matched fields ignore any name sent with a value', () => {
   });
   assert.deepEqual(resolved.clauses, ['status in (1)']);
 });
+
+const cascadeConfig = {
+  dateFields: [],
+  choices: [{
+    id: 'customfield_10300',
+    label: 'Location',
+    match: 'cascade',
+    values: [
+      { id: '100', label: 'Dublin' },
+      { id: '101', label: 'Dublin › Airport', parent: '100' },
+      { id: '200', label: 'London' },
+      { id: '201', label: 'London › Stansted', parent: '200' }
+    ]
+  }]
+};
+
+test('cascading parents and children use cascadeOption', () => {
+  assert.deepEqual(
+    resolveCustomerFilters({ choices: { customfield_10300: ['100'] } }, cascadeConfig).clauses,
+    ['cf[10300] in cascadeOption(100)']
+  );
+  assert.deepEqual(
+    resolveCustomerFilters({ choices: { customfield_10300: ['101', '200'] } }, cascadeConfig).clauses,
+    ['(cf[10300] in cascadeOption(100, 101) OR cf[10300] in cascadeOption(200))']
+  );
+});
+
+test('cascading settings keep valid parents and drop bad ones', () => {
+  const clean = normalizeFilterConfig({
+    choices: [{
+      id: 'customfield_10300', label: 'Location', match: 'cascade',
+      values: [{ id: '101', label: 'Dublin › Airport', parent: '100' }, { id: '102', label: 'Bad', parent: '100) OR (1=1' }]
+    }]
+  });
+  assert.deepEqual(clean.choices[0].values, [
+    { id: '101', label: 'Dublin › Airport', parent: '100' },
+    { id: '102', label: 'Bad' }
+  ]);
+});
+
+test('customers see cascading labels without parent ids', () => {
+  const [choice] = customerFilterOptions(cascadeConfig).choices;
+  assert.deepEqual(choice.values[1], { id: '101', label: 'Dublin › Airport' });
+});
+
+test('parent ids are ignored on fields that are not cascading', () => {
+  const clean = normalizeFilterConfig({ choices: [{ id: 'status', label: 'Status', values: [{ id: '1', label: 'Open', parent: '9' }] }] });
+  assert.deepEqual(clean.choices[0].values, [{ id: '1', label: 'Open' }]);
+});
