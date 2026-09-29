@@ -77,3 +77,44 @@ test('only known fields map to JQL', () => {
   assert.equal(jqlFieldFor('status', 'date'), null);
   assert.equal(jqlFieldFor('summary', 'choice'), null);
 });
+
+const requestTypeConfig = {
+  dateFields: [],
+  choices: [{
+    id: 'customfield_10010',
+    label: 'Request type',
+    match: 'name',
+    values: [
+      { id: '12', label: 'Get IT help', name: 'Get IT help' },
+      { id: '13', label: 'Say "hi"', name: 'Say "hi" \\ bye' }
+    ]
+  }]
+};
+
+test('request types are matched by their exact, quoted name', () => {
+  const resolved = resolveCustomerFilters({ choices: { customfield_10010: ['12', '13'] } }, requestTypeConfig);
+  assert.deepEqual(resolved.clauses, ['cf[10010] in ("Get IT help", "Say \\"hi\\" \\\\ bye")']);
+  assert.deepEqual(resolved.labels, ['Request type Get IT help, Say "hi"']);
+});
+
+test('request type settings keep names and drop values without one', () => {
+  const clean = normalizeFilterConfig({
+    choices: [{
+      id: 'customfield_10010', label: 'Request type', match: 'name',
+      values: [{ id: '12', label: 'Get IT help', name: 'Get IT help' }, { id: '14', label: 'No name' }, { id: '15', label: 'Bad', name: 'line\nbreak' }]
+    }]
+  });
+  assert.deepEqual(clean.choices, [{ id: 'customfield_10010', label: 'Request type', match: 'name', values: [{ id: '12', label: 'Get IT help', name: 'Get IT help' }] }]);
+});
+
+test('customers see request type labels, not the stored names', () => {
+  const [choice] = customerFilterOptions(requestTypeConfig).choices;
+  assert.deepEqual(choice.values, [{ id: '12', label: 'Get IT help' }, { id: '13', label: 'Say "hi"' }]);
+});
+
+test('id-matched fields ignore any name sent with a value', () => {
+  const resolved = resolveCustomerFilters({ choices: { status: ['1'] } }, {
+    dateFields: [], choices: [{ id: 'status', label: 'Status', values: [{ id: '1', label: 'Open', name: '" OR 1=1' }] }]
+  });
+  assert.deepEqual(resolved.clauses, ['status in (1)']);
+});
