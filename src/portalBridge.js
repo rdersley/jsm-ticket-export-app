@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { bridgeSecrets, isAuthorized, signDownload, verifyDownload } from './services/bridgeAuth.js';
 import { handlePortalAction } from './portalCustomer.js';
 
 function headerValue(headers, name) {
@@ -30,26 +30,6 @@ function textResponse(statusCode, body, contentType = 'text/plain; charset=utf-8
     },
     body: String(body ?? '')
   };
-}
-
-function signDownload(payload, secret) {
-  const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
-  const signature = createHmac('sha256', secret).update(encoded).digest('base64url');
-  return `${encoded}.${signature}`;
-}
-
-function verifyDownload(token, secret) {
-  const [encoded, signature] = String(token || '').split('.');
-  if (!encoded || !signature) throw new Error('Invalid download link.');
-  const expected = createHmac('sha256', secret).update(encoded).digest('base64url');
-  const a = Buffer.from(signature);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) throw new Error('Invalid download link.');
-  const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
-  if (!payload?.accountId || !(payload?.reportId || payload?.jobId) || Number(payload?.exp || 0) < Date.now()) {
-    throw new Error('This download link has expired.');
-  }
-  return payload;
 }
 
 function customerContext(payload) {
@@ -131,13 +111,13 @@ window.addEventListener('load',()=>setTimeout(startDownload,100));
 }
 
 export async function trigger(request) {
-  const secret = String(process.env.PORTAL_BRIDGE_TOKEN || '');
-  if (!secret) return jsonResponse(500, { ok: false, error: 'Portal bridge is not configured.' });
+  const secrets = bridgeSecrets();
+  if (!secrets.length) return jsonResponse(500, { ok: false, error: 'Portal bridge is not configured.' });
 
   const downloadToken = queryValue(request, 'download');
   if (downloadToken) {
     try {
-      const payload = verifyDownload(downloadToken, secret);
+      const payload = verifyDownload(downloadToken, secrets);
       const context = customerContext(payload);
       const partValue = queryValue(request, 'part');
       // Links carry either a published report (reportId) or the customer's
@@ -175,7 +155,7 @@ export async function trigger(request) {
   }
 
   const auth = headerValue(request?.headers, 'authorization');
-  if (auth !== `Bearer ${secret}`) {
+  if (!isAuthorized(auth, secrets)) {
     return jsonResponse(401, { ok: false, error: 'Unauthorized' });
   }
 
@@ -199,7 +179,7 @@ export async function trigger(request) {
         portalId,
         reportId,
         exp: Date.now() + 10 * 60 * 1000
-      }, secret);
+      }, secrets);
       return jsonResponse(200, { ok: true, data: { token } });
     }
 
@@ -213,7 +193,7 @@ export async function trigger(request) {
         portalId,
         jobId,
         exp: Date.now() + 10 * 60 * 1000
-      }, secret);
+      }, secrets);
       return jsonResponse(200, { ok: true, data: { token } });
     }
 
