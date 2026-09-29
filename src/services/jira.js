@@ -115,6 +115,8 @@ const SYSTEM_DATE_FIELDS = { created: 'created', updated: 'updated', resolutiond
 const SYSTEM_CHOICE_FIELDS = ['status', 'priority', 'resolution', 'issuetype'];
 const CHOICE_CUSTOM_TYPES = ['select', 'multiselect', 'radiobuttons', 'multicheckboxes']
   .map(type => `com.atlassian.jira.plugin.system.customfieldtypes:${type}`);
+// JSM's request type field is matched by request type name in JQL.
+const REQUEST_TYPE_CUSTOM = 'com.atlassian.servicedesk:vp-origin';
 
 export async function listFilterableFields() {
   const response = await api.asApp().requestJira(route`/rest/api/3/field`);
@@ -128,6 +130,7 @@ export async function listFilterableFields() {
     else if (f.custom && (type === 'date' || type === 'datetime')) dateFields.push({ id: f.id, name: f.name, custom: true });
     else if (SYSTEM_CHOICE_FIELDS.includes(f.id)) choiceFields.push({ id: f.id, name: f.name, custom: false });
     else if (f.custom && CHOICE_CUSTOM_TYPES.includes(f.schema?.custom)) choiceFields.push({ id: f.id, name: f.name, custom: true });
+    else if (f.custom && f.schema?.custom === REQUEST_TYPE_CUSTOM) choiceFields.push({ id: f.id, name: f.name, custom: true, match: 'name' });
   }
   const byName = (a, b) => Number(a.custom) - Number(b.custom) || a.name.localeCompare(b.name);
   return { dateFields: dateFields.sort(byName), choiceFields: choiceFields.sort(byName) };
@@ -147,7 +150,27 @@ async function pagedValues(path, label) {
   return values;
 }
 
-/** Selectable values for a filterable choice field, as [{ id, label }]. */
+async function isRequestTypeField(fieldId) {
+  const fields = await jsonOrThrow(await api.asApp().requestJira(route`/rest/api/3/field`), 'Loading Jira fields');
+  return fields.some(f => f.id === fieldId && f.schema?.custom === REQUEST_TYPE_CUSTOM);
+}
+
+// One entry per request type name, since JQL matches request types by name.
+async function listRequestTypes() {
+  const byName = new Map();
+  let start = 0;
+  for (let page = 0; page < 50; page += 1) {
+    const response = await api.asApp().requestJira(route`/rest/servicedeskapi/requesttype?start=${start}&limit=100`, { headers: { Accept: 'application/json' } });
+    const data = await jsonOrThrow(response, 'Loading request types');
+    const batch = data.values || [];
+    for (const t of batch) if (t?.id && t?.name && !byName.has(t.name)) byName.set(t.name, { id: String(t.id), label: t.name, name: t.name });
+    if (data.isLastPage !== false || !batch.length) break;
+    start += batch.length;
+  }
+  return [...byName.values()];
+}
+
+/** Selectable values for a filterable choice field, as [{ id, label, name? }]. */
 export async function listFieldValues(fieldId) {
   const id = String(fieldId || '');
   let values;
@@ -163,6 +186,8 @@ export async function listFieldValues(fieldId) {
   } else if (id === 'issuetype') {
     const data = await jsonOrThrow(await api.asApp().requestJira(route`/rest/api/3/issuetype`), 'Loading work types');
     values = data.map(t => ({ id: t.id, label: t.name }));
+  } else if (/^customfield_\d+$/.test(id) && await isRequestTypeField(id)) {
+    values = await listRequestTypes();
   } else if (/^customfield_\d+$/.test(id)) {
     const contexts = await pagedValues(startAt => route`/rest/api/3/field/${id}/context?startAt=${startAt}&maxResults=50`, 'Loading field contexts');
     values = [];
@@ -177,6 +202,6 @@ export async function listFieldValues(fieldId) {
     throw new Error('That field cannot be used as a portal filter.');
   }
   const seen = new Map();
-  for (const v of values) if (v?.id && !seen.has(String(v.id))) seen.set(String(v.id), { id: String(v.id), label: String(v.label || v.id) });
+  for (const v of values) if (v?.id && !seen.has(String(v.id))) seen.set(String(v.id), { id: String(v.id), label: String(v.label || v.id), ...(v.name ? { name: String(v.name) } : {}) });
   return [...seen.values()].sort((a, b) => a.label.localeCompare(b.label));
 }

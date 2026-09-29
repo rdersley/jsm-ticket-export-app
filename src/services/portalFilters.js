@@ -18,6 +18,16 @@ const MAX_LABEL = 80;
 const VALUE_ID = /^\d{1,18}$/;
 const CUSTOM_FIELD_ID = /^customfield_(\d{1,10})$/;
 
+const MAX_NAME = 255;
+
+// Request types are matched by name in JQL, so those values keep the exact
+// Jira name (validated, then quoted) alongside the display label.
+const cleanName = value => {
+  const name = String(value ?? '');
+  return name.trim() && name.length <= MAX_NAME && !/[\u0000-\u001f]/.test(name) ? name : '';
+};
+const jqlString = text => `"${String(text).replace(/[\\"]/g, ch => `\\${ch}`)}"`;
+
 const cleanLabel = (value, fallback) => String(value || fallback || '').replace(/\s+/g, ' ').trim().slice(0, MAX_LABEL);
 
 /** Trusted JQL reference for a field id, or null when the field is not filterable. */
@@ -42,12 +52,17 @@ export function normalizeFilterConfig(raw) {
     .slice(0, MAX_DATE_FIELDS);
   const choices = (Array.isArray(raw.choices) ? raw.choices : [])
     .map(f => {
+      const byName = f?.match === 'name';
       const valueSeen = new Set();
       const values = (Array.isArray(f?.values) ? f.values : [])
-        .map(v => ({ id: String(v?.id || ''), label: cleanLabel(v?.label, v?.id) }))
-        .filter(v => VALUE_ID.test(v.id) && !valueSeen.has(v.id) && valueSeen.add(v.id))
+        .map(v => ({
+          id: String(v?.id || ''),
+          label: cleanLabel(v?.label, v?.id),
+          ...(byName ? { name: cleanName(v?.name) } : {})
+        }))
+        .filter(v => VALUE_ID.test(v.id) && (!byName || v.name) && !valueSeen.has(v.id) && valueSeen.add(v.id))
         .slice(0, MAX_VALUES);
-      return { id: String(f?.id || ''), label: cleanLabel(f?.label, f?.id), values };
+      return { id: String(f?.id || ''), label: cleanLabel(f?.label, f?.id), ...(byName ? { match: 'name' } : {}), values };
     })
     .filter(f => jqlFieldFor(f.id, 'choice') && f.values.length && !seen.has(`c:${f.id}`) && seen.add(`c:${f.id}`))
     .slice(0, MAX_CHOICE_FIELDS);
@@ -68,7 +83,7 @@ export function customerFilterOptions(raw) {
   return {
     dateFields: config.dateFields,
     presets: DATE_PRESETS,
-    choices: config.choices.map(({ id, label, values }) => ({ id, label, values }))
+    choices: config.choices.map(({ id, label, values }) => ({ id, label, values: values.map(v => ({ id: v.id, label: v.label })) }))
   };
 }
 
@@ -102,7 +117,8 @@ export function resolveCustomerFilters(input, rawConfig) {
     if (!field) throw new Error('That filter is not available for this report.');
     const picked = values.map(id => field.values.find(v => v.id === id));
     if (picked.some(v => !v)) throw new Error(`Choose ${field.label} values from the list.`);
-    clauses.push(`${jqlFieldFor(field.id, 'choice')} in (${picked.map(v => v.id).join(', ')})`);
+    const terms = field.match === 'name' ? picked.map(v => jqlString(v.name)) : picked.map(v => v.id);
+    clauses.push(`${jqlFieldFor(field.id, 'choice')} in (${terms.join(', ')})`);
     labels.push(`${field.label} ${picked.map(v => v.label).join(', ')}`);
   }
 

@@ -51,15 +51,17 @@ export default function CustomerFilters({ value, onChange, disabled }) {
   const addChoice = async fieldId => {
     const field = fields.choiceFields.find(f => f.id === fieldId);
     if (!field || filters.choices.some(c => c.id === fieldId)) return;
-    update({ choices: [...filters.choices, { id: field.id, label: field.name, values: [] }] });
+    update({ choices: [...filters.choices, { id: field.id, label: field.name, ...(field.match ? { match: field.match } : {}), values: [] }] });
     await loadValues(field.id);
   };
 
+  // Request types keep their exact Jira name, which the query matches on.
+  const savedValue = ({ id, label, name }) => ({ id, label, ...(name ? { name } : {}) });
   const setChoice = (fieldId, changes) => update({ choices: filters.choices.map(c => c.id === fieldId ? { ...c, ...changes } : c) });
   const removeChoice = fieldId => update({ choices: filters.choices.filter(c => c.id !== fieldId) });
   const toggleValue = (choice, option) => {
     const on = choice.values.some(v => v.id === option.id);
-    setChoice(choice.id, { values: on ? choice.values.filter(v => v.id !== option.id) : [...choice.values, { id: option.id, label: option.label }] });
+    setChoice(choice.id, { values: on ? choice.values.filter(v => v.id !== option.id) : [...choice.values, savedValue(option)] });
   };
 
   // Show saved date fields even if the field list hasn't loaded or a field was removed from Jira.
@@ -87,7 +89,7 @@ export default function CustomerFilters({ value, onChange, disabled }) {
         <div>
           <div><strong>{choice.label}</strong><small>{choice.values.length ? `${choice.values.length} value${choice.values.length === 1 ? '' : 's'} offered` : 'Tick at least one value, or customers won\'t see this filter'}</small></div>
           <div className="actions">
-            <button disabled={disabled || !options.length} onClick={() => setChoice(choice.id, { values: options.map(({ id, label }) => ({ id, label })) })}>Select all</button>
+            <button disabled={disabled || !options.length} onClick={() => setChoice(choice.id, { values: options.map(savedValue) })}>Select all</button>
             <button disabled={disabled || !choice.values.length} onClick={() => setChoice(choice.id, { values: [] })}>Clear</button>
             <button disabled={disabled} onClick={() => removeChoice(choice.id)}>Remove</button>
           </div>
