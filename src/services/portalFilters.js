@@ -52,17 +52,19 @@ export function normalizeFilterConfig(raw) {
     .slice(0, MAX_DATE_FIELDS);
   const choices = (Array.isArray(raw.choices) ? raw.choices : [])
     .map(f => {
-      const byName = f?.match === 'name';
+      const match = f?.match === 'name' || f?.match === 'cascade' ? f.match : null;
       const valueSeen = new Set();
       const values = (Array.isArray(f?.values) ? f.values : [])
         .map(v => ({
           id: String(v?.id || ''),
           label: cleanLabel(v?.label, v?.id),
-          ...(byName ? { name: cleanName(v?.name) } : {})
+          ...(match === 'name' ? { name: cleanName(v?.name) } : {}),
+          // A cascading child keeps its parent option id; parents have none.
+          ...(match === 'cascade' && VALUE_ID.test(String(v?.parent || '')) ? { parent: String(v.parent) } : {})
         }))
-        .filter(v => VALUE_ID.test(v.id) && (!byName || v.name) && !valueSeen.has(v.id) && valueSeen.add(v.id))
+        .filter(v => VALUE_ID.test(v.id) && (match !== 'name' || v.name) && !valueSeen.has(v.id) && valueSeen.add(v.id))
         .slice(0, MAX_VALUES);
-      return { id: String(f?.id || ''), label: cleanLabel(f?.label, f?.id), ...(byName ? { match: 'name' } : {}), values };
+      return { id: String(f?.id || ''), label: cleanLabel(f?.label, f?.id), ...(match ? { match } : {}), values };
     })
     .filter(f => jqlFieldFor(f.id, 'choice') && f.values.length && !seen.has(`c:${f.id}`) && seen.add(`c:${f.id}`))
     .slice(0, MAX_CHOICE_FIELDS);
@@ -117,8 +119,14 @@ export function resolveCustomerFilters(input, rawConfig) {
     if (!field) throw new Error('That filter is not available for this report.');
     const picked = values.map(id => field.values.find(v => v.id === id));
     if (picked.some(v => !v)) throw new Error(`Choose ${field.label} values from the list.`);
-    const terms = field.match === 'name' ? picked.map(v => jqlString(v.name)) : picked.map(v => v.id);
-    clauses.push(`${jqlFieldFor(field.id, 'choice')} in (${terms.join(', ')})`);
+    const jqlField = jqlFieldFor(field.id, 'choice');
+    if (field.match === 'cascade') {
+      const parts = picked.map(v => `${jqlField} in cascadeOption(${v.parent ? `${v.parent}, ${v.id}` : v.id})`);
+      clauses.push(parts.length > 1 ? `(${parts.join(' OR ')})` : parts[0]);
+    } else {
+      const terms = field.match === 'name' ? picked.map(v => jqlString(v.name)) : picked.map(v => v.id);
+      clauses.push(`${jqlField} in (${terms.join(', ')})`);
+    }
     labels.push(`${field.label} ${picked.map(v => v.label).join(', ')}`);
   }
 

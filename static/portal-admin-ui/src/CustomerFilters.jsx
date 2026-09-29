@@ -55,8 +55,9 @@ export default function CustomerFilters({ value, onChange, disabled }) {
     await loadValues(field.id);
   };
 
-  // Request types keep their exact Jira name, which the query matches on.
-  const savedValue = ({ id, label, name }) => ({ id, label, ...(name ? { name } : {}) });
+  // Request types keep their exact Jira name, and cascading children their
+  // parent option, because the query is built from those.
+  const savedValue = ({ id, label, name, parent }) => ({ id, label, ...(name ? { name } : {}), ...(parent ? { parent } : {}) });
   const setChoice = (fieldId, changes) => update({ choices: filters.choices.map(c => c.id === fieldId ? { ...c, ...changes } : c) });
   const removeChoice = fieldId => update({ choices: filters.choices.filter(c => c.id !== fieldId) });
   const toggleValue = (choice, option) => {

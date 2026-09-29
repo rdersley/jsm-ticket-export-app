@@ -117,6 +117,8 @@ const CHOICE_CUSTOM_TYPES = ['select', 'multiselect', 'radiobuttons', 'multichec
   .map(type => `com.atlassian.jira.plugin.system.customfieldtypes:${type}`);
 // JSM's request type field is matched by request type name in JQL.
 const REQUEST_TYPE_CUSTOM = 'com.atlassian.servicedesk:vp-origin';
+// Cascading selects are matched with cascadeOption(parent[, child]).
+const CASCADE_CUSTOM = 'com.atlassian.jira.plugin.system.customfieldtypes:cascadingselect';
 
 export async function listFilterableFields() {
   const response = await api.asApp().requestJira(route`/rest/api/3/field`);
@@ -131,6 +133,7 @@ export async function listFilterableFields() {
     else if (SYSTEM_CHOICE_FIELDS.includes(f.id)) choiceFields.push({ id: f.id, name: f.name, custom: false });
     else if (f.custom && CHOICE_CUSTOM_TYPES.includes(f.schema?.custom)) choiceFields.push({ id: f.id, name: f.name, custom: true });
     else if (f.custom && f.schema?.custom === REQUEST_TYPE_CUSTOM) choiceFields.push({ id: f.id, name: f.name, custom: true, match: 'name' });
+    else if (f.custom && f.schema?.custom === CASCADE_CUSTOM) choiceFields.push({ id: f.id, name: f.name, custom: true, match: 'cascade' });
   }
   const byName = (a, b) => Number(a.custom) - Number(b.custom) || a.name.localeCompare(b.name);
   return { dateFields: dateFields.sort(byName), choiceFields: choiceFields.sort(byName) };
@@ -150,9 +153,34 @@ async function pagedValues(path, label) {
   return values;
 }
 
-async function isRequestTypeField(fieldId) {
+async function customFieldType(fieldId) {
   const fields = await jsonOrThrow(await api.asApp().requestJira(route`/rest/api/3/field`), 'Loading Jira fields');
-  return fields.some(f => f.id === fieldId && f.schema?.custom === REQUEST_TYPE_CUSTOM);
+  return fields.find(f => f.id === fieldId)?.schema?.custom || '';
+}
+
+async function listOptions(fieldId) {
+  const contexts = await pagedValues(startAt => route`/rest/api/3/field/${fieldId}/context?startAt=${startAt}&maxResults=50`, 'Loading field contexts');
+  const options = [];
+  for (const context of contexts) {
+    options.push(...await pagedValues(
+      startAt => route`/rest/api/3/field/${fieldId}/context/${context.id}/option?startAt=${startAt}&maxResults=100`,
+      'Loading field options'
+    ));
+  }
+  return options.filter(o => o?.id && !o.disabled);
+}
+
+// Each parent on its own, then each "Parent › Child" pair under it.
+function cascadeValues(options) {
+  const parents = options.filter(o => !o.optionId);
+  const values = [];
+  for (const parent of parents) {
+    values.push({ id: String(parent.id), label: parent.value });
+    for (const child of options.filter(o => String(o.optionId) === String(parent.id))) {
+      values.push({ id: String(child.id), label: `${parent.value} › ${child.value}`, parent: String(parent.id) });
+    }
+  }
+  return values;
 }
 
 // One entry per request type name, since JQL matches request types by name.
@@ -186,22 +214,25 @@ export async function listFieldValues(fieldId) {
   } else if (id === 'issuetype') {
     const data = await jsonOrThrow(await api.asApp().requestJira(route`/rest/api/3/issuetype`), 'Loading work types');
     values = data.map(t => ({ id: t.id, label: t.name }));
-  } else if (/^customfield_\d+$/.test(id) && await isRequestTypeField(id)) {
-    values = await listRequestTypes();
   } else if (/^customfield_\d+$/.test(id)) {
-    const contexts = await pagedValues(startAt => route`/rest/api/3/field/${id}/context?startAt=${startAt}&maxResults=50`, 'Loading field contexts');
-    values = [];
-    for (const context of contexts) {
-      const options = await pagedValues(
-        startAt => route`/rest/api/3/field/${id}/context/${context.id}/option?startAt=${startAt}&maxResults=100`,
-        'Loading field options'
-      );
-      values.push(...options.filter(o => !o.disabled && !o.optionId).map(o => ({ id: o.id, label: o.value })));
-    }
+    const type = await customFieldType(id);
+    if (type === REQUEST_TYPE_CUSTOM) values = await listRequestTypes();
+    else if (type === CASCADE_CUSTOM) values = cascadeValues(await listOptions(id));
+    else values = (await listOptions(id)).filter(o => !o.optionId).map(o => ({ id: o.id, label: o.value }));
   } else {
     throw new Error('That field cannot be used as a portal filter.');
   }
   const seen = new Map();
-  for (const v of values) if (v?.id && !seen.has(String(v.id))) seen.set(String(v.id), { id: String(v.id), label: String(v.label || v.id), ...(v.name ? { name: String(v.name) } : {}) });
-  return [...seen.values()].sort((a, b) => a.label.localeCompare(b.label));
+  for (const v of values) {
+    if (!v?.id || seen.has(String(v.id))) continue;
+    seen.set(String(v.id), {
+      id: String(v.id),
+      label: String(v.label || v.id),
+      ...(v.name ? { name: String(v.name) } : {}),
+      ...(v.parent ? { parent: String(v.parent) } : {})
+    });
+  }
+  const list = [...seen.values()];
+  // Cascading values keep parent-then-children order; the rest sort by label.
+  return values.some(v => v.parent) ? list : list.sort((a, b) => a.label.localeCompare(b.label));
 }
