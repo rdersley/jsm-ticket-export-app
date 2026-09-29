@@ -63,6 +63,13 @@ function downloadUrlFor(link) {
   return bridgeUrl && token ? `${bridgeUrl}?download=${encodeURIComponent(token)}` : '';
 }
 
+// Signed links expire after 10 minutes, so the card asks for a fresh one on
+// each Download click rather than reusing the link from when the page loaded.
+resolver.define('portal:published-download', async ({ payload, context }) => {
+  const link = await bridge('portal:download-link', { reportId: payload?.reportId }, context);
+  return { downloadUrl: downloadUrlFor(link) };
+});
+
 // Date-filtered runs are private to the customer, so they download from the job.
 resolver.define('portal:job-download', async ({ payload, context }) => {
   const link = await bridge('portal:job-download-link', { jobId: payload?.jobId }, context);
