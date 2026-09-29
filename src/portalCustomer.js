@@ -3,7 +3,8 @@ import api, { route } from '@forge/api';
 import { Queue } from '@forge/events';
 import { kvs } from '@forge/kvs';
 import { listReports, getReport } from './services/reportStore.js';
-import { normalizeDateFilter, DATE_FIELDS, DATE_PRESETS } from './services/dateFilter.js';
+import { DATE_FIELDS, DATE_PRESETS } from './services/dateFilter.js';
+import { customerFilterOptions, resolveCustomerFilters } from './services/portalFilters.js';
 
 const resolver = new Resolver();
 const queue = new Queue({ key: 'portal-report-queue' });
@@ -102,6 +103,7 @@ async function listPortalReports(context) {
       description: report.description || '',
       allowRun: access.config.allowRun !== false,
       allowDownload: access.config.allowDownload !== false && !!latest,
+      filters: access.config.allowRun !== false ? customerFilterOptions(access.config.filters) : null,
       latest: latest ? {
         generatedAt: latest.generatedAt,
         issueCount: latest.issueCount,
@@ -114,17 +116,17 @@ async function listPortalReports(context) {
   return visible;
 }
 
-async function startJob(reportId, context, rawDateFilter) {
+async function startJob(reportId, context, rawFilters) {
   const report = await getReport(reportId);
   if (!report) throw new Error('Report not found.');
   const ownerAccountId = accountIdFrom(context);
   const access = await isAllowed(reportId, context);
   if (!access.allowed || access.config.allowRun === false) throw new Error('You do not have permission to run this report.');
-  const dateFilter = normalizeDateFilter(rawDateFilter);
+  const filters = resolveCustomerFilters(rawFilters, access.config.filters);
 
-  // A date-filtered run is private to the customer, so it is kept as a job
+  // A filtered run is private to the customer, so it is kept as a job
   // rather than replacing the published copy. Keep only their latest one.
-  if (dateFilter) {
+  if (filters) {
     const previousJobId = await kvs.get(filteredJobKey(ownerAccountId, reportId));
     if (previousJobId) await removeJob(previousJobId).catch(() => {});
   }
@@ -137,12 +139,12 @@ async function startJob(reportId, context, rawDateFilter) {
     ownerAccountId,
     state: 'queued',
     adminPublish: false,
-    dateFilter,
+    filters,
     createdAt: now,
     updatedAt: now
   });
-  if (dateFilter) await kvs.set(filteredJobKey(ownerAccountId, reportId), jobId);
-  await queue.push({ body: { jobId, reportId, ownerAccountId, adminPublish: false, dateFilter } });
+  if (filters) await kvs.set(filteredJobKey(ownerAccountId, reportId), jobId);
+  await queue.push({ body: { jobId, reportId, ownerAccountId, adminPublish: false, filters } });
   return { jobId };
 }
 
@@ -183,7 +185,7 @@ export async function handlePortalAction(action, payload = {}, context = {}) {
     case 'portal:list':
       return listPortalReports(context);
     case 'portal:run':
-      return startJob(payload.reportId, context, payload.dateFilter);
+      return startJob(payload.reportId, context, payload.filters ?? payload.dateFilter);
     case 'portal:date-options':
       return { fields: DATE_FIELDS.map(({ id, label }) => ({ id, label })), presets: DATE_PRESETS };
     case 'portal:job-meta': {
@@ -218,7 +220,7 @@ export async function handlePortalAction(action, payload = {}, context = {}) {
 }
 
 resolver.define('portal:list', ({ context }) => listPortalReports(context));
-resolver.define('portal:run', ({ payload, context }) => startJob(payload.reportId, context, payload.dateFilter));
+resolver.define('portal:run', ({ payload, context }) => startJob(payload.reportId, context, payload.filters ?? payload.dateFilter));
 resolver.define('portal:job-status', async ({ payload, context }) => (await ownedJob(payload.jobId, context)) || { state: 'missing' });
 resolver.define('portal:job-cleanup', ({ payload, context }) => cleanupJob(payload.jobId, context));
 resolver.define('portal:latest-meta', async ({ payload, context }) => {

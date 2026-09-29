@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { invoke } from '@forge/bridge';
 import './styles.css';
+import CustomerFilters from './CustomerFilters.jsx';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 function unique(values){return [...new Set((values||[]).map(String))]}
@@ -82,6 +83,7 @@ function App(){
 })}</div>}
         <h2>Selected organisations</h2><div className="options">{organizations.map(o=><label key={o.id}><input type="checkbox" checked={selectedOrgs.includes(String(o.id))} onChange={()=>toggleId('organizationIds',o.id)}/><span>{o.name}</span></label>)}</div>
       </>}
+      {cfg.allowRun!==false&&<CustomerFilters value={cfg.filters} disabled={busy} onChange={v=>patch('filters',v)}/>}
       <div className="info">Portal users must be signed in. Restricted reports are checked against the customer's Atlassian account and JSM organisation memberships before they are listed, generated or downloaded.</div>
     </section>
   </main>;

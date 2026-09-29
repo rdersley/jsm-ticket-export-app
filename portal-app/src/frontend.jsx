@@ -5,27 +5,37 @@ import { invoke, router } from '@forge/bridge';
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const NO_DATE_FILTER = { label: 'All dates', value: '' };
 
-// Turns the card's picker state into the dateFilter the backend expects.
-const dateFilterFrom = filter => (filter?.field ? {
-  field: filter.field,
-  preset: filter.preset || 'last30',
-  from: filter.from || null,
-  to: filter.to || null
-} : null);
+// Turns a card's picker state into the filters the backend expects, or null.
+const selectionFrom = state => {
+  const date = state?.field ? {
+    field: state.field,
+    preset: state.preset || 'last30',
+    from: state.from || null,
+    to: state.to || null
+  } : null;
+  const choices = Object.fromEntries(Object.entries(state?.choices || {}).filter(([, ids]) => ids?.length));
+  return date || Object.keys(choices).length ? { date, choices } : null;
+};
 
-const DateFilterControls = ({ reportId, options, filter, onChange }) => {
-  const fieldOptions = [NO_DATE_FILTER, ...options.fields.map(f => ({ label: f.label, value: f.id }))];
-  const presetOptions = options.presets.map(p => ({ label: p.label, value: p.id }));
-  const field = fieldOptions.find(o => o.value === (filter?.field || '')) || NO_DATE_FILTER;
-  const preset = presetOptions.find(o => o.value === (filter?.preset || 'last30')) || presetOptions[0];
-  const update = changes => onChange({ ...(filter || {}), ...changes });
+const hasFilters = options => Boolean(options?.dateFields?.length || options?.choices?.length);
+
+// Shows only the filters the report creator allowed for this report.
+const FilterControls = ({ reportId, options, state, onChange }) => {
+  const dateOptions = [NO_DATE_FILTER, ...(options.dateFields || []).map(f => ({ label: f.label, value: f.id }))];
+  const presetOptions = (options.presets || []).map(p => ({ label: p.label, value: p.id }));
+  const field = dateOptions.find(o => o.value === (state?.field || '')) || NO_DATE_FILTER;
+  const preset = presetOptions.find(o => o.value === (state?.preset || 'last30')) || presetOptions[0];
+  const update = changes => onChange({ ...(state || {}), ...changes });
+  const setChoice = (fieldId, ids) => update({ choices: { ...(state?.choices || {}), [fieldId]: ids } });
 
   return (
     <Inline space="space.200" shouldWrap alignBlock="end">
-      <Stack space="space.050">
-        <Label labelFor={`date-field-${reportId}`}>Filter by date</Label>
-        <Select inputId={`date-field-${reportId}`} options={fieldOptions} value={field} onChange={o => update({ field: o?.value || '' })} />
-      </Stack>
+      {options.dateFields?.length ? (
+        <Stack space="space.050">
+          <Label labelFor={`date-field-${reportId}`}>Filter by date</Label>
+          <Select inputId={`date-field-${reportId}`} options={dateOptions} value={field} onChange={o => update({ field: o?.value || '' })} />
+        </Stack>
+      ) : null}
       {field.value ? (
         <Stack space="space.050">
           <Label labelFor={`date-range-${reportId}`}>Date range</Label>
@@ -36,14 +46,31 @@ const DateFilterControls = ({ reportId, options, filter, onChange }) => {
         <>
           <Stack space="space.050">
             <Label labelFor={`date-from-${reportId}`}>From</Label>
-            <DatePicker id={`date-from-${reportId}`} value={filter?.from || ''} onChange={value => update({ from: value || '' })} />
+            <DatePicker id={`date-from-${reportId}`} value={state?.from || ''} onChange={value => update({ from: value || '' })} />
           </Stack>
           <Stack space="space.050">
             <Label labelFor={`date-to-${reportId}`}>To</Label>
-            <DatePicker id={`date-to-${reportId}`} value={filter?.to || ''} onChange={value => update({ to: value || '' })} />
+            <DatePicker id={`date-to-${reportId}`} value={state?.to || ''} onChange={value => update({ to: value || '' })} />
           </Stack>
         </>
       ) : null}
+      {(options.choices || []).map(choice => {
+        const values = choice.values.map(v => ({ label: v.label, value: v.id }));
+        const picked = state?.choices?.[choice.id] || [];
+        return (
+          <Stack key={choice.id} space="space.050">
+            <Label labelFor={`choice-${reportId}-${choice.id}`}>{choice.label}</Label>
+            <Select
+              inputId={`choice-${reportId}-${choice.id}`}
+              isMulti
+              placeholder="Any"
+              options={values}
+              value={values.filter(v => picked.includes(v.value))}
+              onChange={selected => setChoice(choice.id, (selected || []).map(o => o.value))}
+            />
+          </Stack>
+        );
+      })}
     </Inline>
   );
 };
@@ -53,7 +80,6 @@ const PortalReports = () => {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const [dateOptions, setDateOptions] = useState(null);
   const [filters, setFilters] = useState({});
 
   const refresh = async () => {
@@ -67,26 +93,22 @@ const PortalReports = () => {
     }
   };
 
-  useEffect(() => {
-    refresh();
-    // Older backends don't offer date options; the card then hides the filter.
-    invoke('portal:date-options', {}).then(setDateOptions).catch(() => setDateOptions(null));
-  }, []);
+  useEffect(() => { refresh(); }, []);
 
   const run = async report => {
-    const dateFilter = dateFilterFrom(filters[report.id]);
+    const selection = selectionFrom(filters[report.id]);
     setBusy(report.id);
     setError('');
     setMessage(`Generating ${report.name}…`);
     let jobId = '';
     try {
-      const started = await invoke('portal:run', { reportId: report.id, dateFilter });
+      const started = await invoke('portal:run', { reportId: report.id, filters: selection });
       jobId = started?.jobId || '';
       if (!jobId) throw new Error('The report could not be queued.');
 
       for (let attempt = 0; attempt < 450; attempt += 1) {
         const status = await invoke('portal:job-status', { jobId });
-        if (status?.state === 'ready' && dateFilter) {
+        if (status?.state === 'ready' && selection) {
           // Filtered copies are private to this customer; the job is kept
           // until their next filtered run so the download page can read it.
           const count = status.issueCount != null ? ` · ${status.issueCount} work items` : '';
@@ -152,11 +174,11 @@ const PortalReports = () => {
             </Inline>
           ) : null}
 
-          {report.allowRun && dateOptions?.fields?.length ? (
-            <DateFilterControls
+          {report.allowRun && hasFilters(report.filters) ? (
+            <FilterControls
               reportId={report.id}
-              options={dateOptions}
-              filter={filters[report.id]}
+              options={report.filters}
+              state={filters[report.id]}
               onChange={next => setFilters(current => ({ ...current, [report.id]: next }))}
             />
           ) : null}
@@ -164,7 +186,7 @@ const PortalReports = () => {
           {report.allowRun ? (
             <Inline space="space.100">
               <Button appearance="primary" isDisabled={busy === report.id} onClick={() => run(report)}>
-                {busy === report.id ? 'Generating…' : filters[report.id]?.field ? 'Generate filtered report' : 'Generate fresh report'}
+                {busy === report.id ? 'Generating…' : selectionFrom(filters[report.id]) ? 'Generate filtered report' : 'Generate fresh report'}
               </Button>
             </Inline>
           ) : null}

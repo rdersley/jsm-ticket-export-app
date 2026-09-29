@@ -99,6 +99,8 @@ permissions:
     - read:jira-work
     - read:field:jira
     - read:filter:jira
+    - read:custom-field-contextual-configuration:jira
+    - read:field.option:jira
     - read:servicedesk-request
     - read:organization:jira-service-management
     - read:organization.user:jira-service-management
