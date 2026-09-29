@@ -46,7 +46,7 @@ function verifyDownload(token, secret) {
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) throw new Error('Invalid download link.');
   const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
-  if (!payload?.accountId || !payload?.reportId || Number(payload?.exp || 0) < Date.now()) {
+  if (!payload?.accountId || !(payload?.reportId || payload?.jobId) || Number(payload?.exp || 0) < Date.now()) {
     throw new Error('This download link has expired.');
   }
   return payload;
@@ -140,23 +140,20 @@ export async function trigger(request) {
       const payload = verifyDownload(downloadToken, secret);
       const context = customerContext(payload);
       const partValue = queryValue(request, 'part');
+      // Links carry either a published report (reportId) or the customer's
+      // own date-filtered job (jobId).
+      const source = payload.jobId
+        ? { meta: 'portal:job-meta', chunk: 'portal:job-chunk', args: { jobId: payload.jobId } }
+        : { meta: 'portal:latest-meta', chunk: 'portal:latest-chunk', args: { reportId: payload.reportId } };
 
       if (partValue !== '') {
         const index = Number(partValue);
         if (!Number.isInteger(index) || index < 0) throw new Error('Invalid report chunk.');
-        const chunk = await handlePortalAction(
-          'portal:latest-chunk',
-          { reportId: payload.reportId, index },
-          context
-        );
+        const chunk = await handlePortalAction(source.chunk, { ...source.args, index }, context);
         return textResponse(200, chunk);
       }
 
-      const meta = await handlePortalAction(
-        'portal:latest-meta',
-        { reportId: payload.reportId },
-        context
-      );
+      const meta = await handlePortalAction(source.meta, source.args, context);
       if (!meta?.chunkCount) throw new Error('There is no published report available to download.');
 
       const host = headerValue(request?.headers, 'host');
@@ -201,6 +198,20 @@ export async function trigger(request) {
         accountId,
         portalId,
         reportId,
+        exp: Date.now() + 10 * 60 * 1000
+      }, secret);
+      return jsonResponse(200, { ok: true, data: { token } });
+    }
+
+    if (input.action === 'portal:job-download-link') {
+      const jobId = String(input?.payload?.jobId || '').trim();
+      if (!jobId) throw new Error('Missing jobId.');
+      await handlePortalAction('portal:job-meta', { jobId }, context);
+
+      const token = signDownload({
+        accountId,
+        portalId,
+        jobId,
         exp: Date.now() + 10 * 60 * 1000
       }, secret);
       return jsonResponse(200, { ok: true, data: { token } });
