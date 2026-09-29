@@ -1,0 +1,39 @@
+/*
+ * Excel Report Manager legacy classes -> Nuvriqo UI System v1 (via @nuvriqo/ui variables).
+ * Shared by all four Custom UI resources and loaded after each resource's styles.css.
+ * New markup should use nq-* classes directly. Tokens only: no hex here.
+ */
+body{background:var(--nq-surface-sunken)}
+
+/* Buttons: bordered secondary by default, brand primary, v1 metrics */
+button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:var(--nq-control-height);padding:var(--nq-btn-padding);border:1px solid var(--nq-border-strong);border-radius:var(--nq-btn-radius);background:var(--nq-surface-raised);color:var(--nq-text);font-weight:var(--nq-btn-weight);line-height:1.2;transition:background .16s ease,border-color .16s ease}
+button:hover:not(:disabled){background:var(--nq-surface-hovered);border-color:var(--nq-border-input)}
+button:disabled{opacity:.48;cursor:not-allowed}
+.primary,button.primary{background:var(--nq-bg-brand);border-color:var(--nq-bg-brand);color:var(--nq-text-inverse)}
+.primary:hover:not(:disabled),button.primary:hover:not(:disabled){background:var(--nq-bg-brand-hovered);border-color:var(--nq-bg-brand-hovered)}
+.danger{color:var(--nq-text-danger)}
+.link,button.link{min-height:0;border-color:transparent;background:transparent;color:var(--nq-link);padding:0}
+.presetBar button{min-height:var(--nq-control-height-sm);border-radius:var(--nq-radius-sm);padding:0 10px}
+
+/* Surfaces */
+.stat,.panel,.stats div{background:var(--nq-surface-raised);border:1px solid var(--nq-border);border-radius:var(--nq-radius-lg);box-shadow:var(--nq-shadow-card)}
+.stat,.stats div{position:relative;overflow:hidden;padding:18px 20px}
+.stat::before,.stats div::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--nq-border-brand)}
+.stat strong,.stats strong{font-size:28px;font-weight:700;letter-spacing:var(--nq-title-tracking);line-height:1.1}
+.stat span,.stats span{margin-top:9px;font-size:var(--nq-font-size-sm);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--nq-text-subtlest)}
+.panel{padding:var(--nq-space-250)}
+.notice,.info{border:1px solid var(--nq-border-information);border-radius:9px;background:var(--nq-bg-information);color:var(--nq-text)}
+
+/* Status pills (v1 pill with dot) */
+.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;font-weight:800;line-height:1}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+
+/* Inputs */
+input:not([type=checkbox]):not([type=radio]):not([type=color]),select,textarea,
+.panel input:not([type=checkbox]):not([type=radio]):not([type=color]),.panel select,.panel textarea{min-height:var(--nq-control-height);padding:9px 11px;border:1px solid var(--nq-border-strong);border-radius:var(--nq-radius);background:var(--nq-bg-input);color:var(--nq-text)}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--nq-border-focused);box-shadow:0 0 0 2px var(--nq-focus-ring)}
+input[type=checkbox],input[type=radio]{accent-color:var(--nq-bg-brand)}
+.panel label{font-size:13px;font-weight:700;color:var(--nq-text-subtle)}
+
+/* Wizard steps use the nq-tabs pill language */
+.steps button.active{border-color:var(--nq-border-brand);background:var(--nq-bg-selected);color:var(--nq-text-selected)}

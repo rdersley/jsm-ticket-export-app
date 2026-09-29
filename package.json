@@ -5,14 +5,15 @@
   "description": "Visual, scheduled Excel reporting for Jira without Jira Automation rules.",
   "main": "src/index.js",
   "scripts": {
-    "build": "npm run build:admin && npm run build:hardware && npm run build:navigator && npm run build:portal-admin",
+    "build": "npm run check:ui && npm run build:admin && npm run build:hardware && npm run build:navigator && npm run build:portal-admin",
     "build:admin": "vite build --config static/admin-ui/vite.config.js",
     "build:hardware": "vite build --config static/hardware-ui/vite.config.js",
     "build:navigator": "vite build --config static/navigator-ui/vite.config.js",
     "build:portal-admin": "vite build --config static/portal-admin-ui/vite.config.js",
     "test": "node --experimental-default-type=module --test tests/*.test.js",
     "lint": "forge lint",
-    "deploy": "npm run build && forge deploy"
+    "deploy": "npm run build && forge deploy",
+    "check:ui": "nuvriqo-ui-check static/nuvriqo-v1.css static/admin-ui/src static/hardware-ui/src static/navigator-ui/src static/portal-admin-ui/src"
   },
   "dependencies": {
     "@forge/api": "^6.0.0",
@@ -27,9 +28,10 @@
     "linkify-it": "^5.0.2"
   },
   "devDependencies": {
+    "@nuvriqo/ui": "github:rdersley/nuvriqo-ui#v0.3.0",
     "@vitejs/plugin-react": "^5.0.0",
-    "vite": "^7.0.0",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "vite": "^7.0.0"
   }
 }
