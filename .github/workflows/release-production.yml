@@ -47,6 +47,19 @@ jobs:
       - name: Forge lint main app
         run: forge lint
 
+      # Token rotation never leaves the Portal Reports app holding a token the
+      # bridge rejects: the new token is accepted alongside the current one
+      # (PORTAL_BRIDGE_TOKEN_NEXT), the portal app moves onto it, and only then
+      # is it promoted. A run that stops part-way leaves both tokens valid.
+      - name: Stage next Portal Reports bridge token
+        id: token
+        shell: bash
+        run: |
+          TOKEN="$(openssl rand -hex 32)"
+          echo "::add-mask::$TOKEN"
+          forge variables set --encrypt -e production PORTAL_BRIDGE_TOKEN_NEXT "$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
       - name: Deploy Excel Report Manager production
         run: forge deploy -e production --approve MAJOR_VERSION_RULE --non-interactive
 
@@ -56,31 +69,35 @@ jobs:
           forge install --upgrade --confirm-scopes --non-interactive --site retailinmotion.atlassian.net --product jira -e production || \
           forge install --confirm-scopes --non-interactive --site retailinmotion.atlassian.net --product jira -e production
 
-      - name: Configure secure production Portal Reports bridge
+      - name: Get production Portal Reports bridge URL
         id: bridge
         shell: bash
         run: |
-          TOKEN="$(openssl rand -hex 32)"
-          forge variables set --encrypt -e production PORTAL_BRIDGE_TOKEN "$TOKEN"
-          forge deploy -e production --approve MAJOR_VERSION_RULE --non-interactive
-
           URL="$(forge webtrigger create -f portal-bridge -s retailinmotion.atlassian.net -p Jira -e production | grep -Eo 'https://[^ ]+' | tail -n 1)"
           if [ -z "$URL" ]; then
             echo "Could not obtain production Portal Reports bridge URL."
             exit 1
           fi
-          echo "::add-mask::$TOKEN"
           echo "::add-mask::$URL"
-          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
           echo "url=$URL" >> "$GITHUB_OUTPUT"
 
-      - name: Verify production bridge
+      - name: Verify production bridge accepts the new token
         shell: bash
         run: |
-          curl -fsS -X POST "${{ steps.bridge.outputs.url }}" \
-            -H "Authorization: Bearer ${{ steps.bridge.outputs.token }}" \
-            -H "Content-Type: application/json" \
-            --data '{"action":"ping"}' | grep -q '"ok":true'
+          # A fresh deployment can take a moment to serve the new token.
+          for attempt in $(seq 1 12); do
+            if curl -fsS -X POST "${{ steps.bridge.outputs.url }}" \
+              -H "Authorization: Bearer ${{ steps.token.outputs.token }}" \
+              -H "Content-Type: application/json" \
+              --data '{"action":"ping"}' | grep -q '"ok":true'; then
+              echo "Bridge accepted the new token (attempt $attempt)."
+              exit 0
+            fi
+            echo "Bridge not ready yet (attempt $attempt of 12); retrying in 10s."
+            sleep 10
+          done
+          echo "The production bridge did not accept the new token."
+          exit 1
 
       - name: Install Portal Reports dependencies
         working-directory: portal-app
@@ -94,7 +111,7 @@ jobs:
         working-directory: portal-app
         shell: bash
         run: |
-          forge variables set --encrypt -e production PORTAL_BRIDGE_TOKEN "${{ steps.bridge.outputs.token }}"
+          forge variables set --encrypt -e production PORTAL_BRIDGE_TOKEN "${{ steps.token.outputs.token }}"
           forge variables set --encrypt -e production PORTAL_BRIDGE_URL "${{ steps.bridge.outputs.url }}"
 
       - name: Test Portal Reports app
@@ -116,3 +133,28 @@ jobs:
         run: |
           forge install --upgrade --confirm-scopes --non-interactive --site retailinmotion.atlassian.net --product jira -e production || \
           forge install --confirm-scopes --non-interactive --site retailinmotion.atlassian.net --product jira -e production
+
+      - name: Promote the new Portal Reports bridge token
+        shell: bash
+        run: |
+          forge variables set --encrypt -e production PORTAL_BRIDGE_TOKEN "${{ steps.token.outputs.token }}"
+          forge variables unset -e production PORTAL_BRIDGE_TOKEN_NEXT
+          forge deploy -e production --approve MAJOR_VERSION_RULE --non-interactive
+
+      - name: Verify production bridge after promotion
+        shell: bash
+        run: |
+          # A fresh deployment can take a moment to serve the new token.
+          for attempt in $(seq 1 12); do
+            if curl -fsS -X POST "${{ steps.bridge.outputs.url }}" \
+              -H "Authorization: Bearer ${{ steps.token.outputs.token }}" \
+              -H "Content-Type: application/json" \
+              --data '{"action":"ping"}' | grep -q '"ok":true'; then
+              echo "Bridge accepted the new token (attempt $attempt)."
+              exit 0
+            fi
+            echo "Bridge not ready yet (attempt $attempt of 12); retrying in 10s."
+            sleep 10
+          done
+          echo "The production bridge did not accept the new token."
+          exit 1
