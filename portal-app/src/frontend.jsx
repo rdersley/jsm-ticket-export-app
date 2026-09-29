@@ -17,6 +17,19 @@ const selectionFrom = state => {
   return date || Object.keys(choices).length ? { date, choices } : null;
 };
 
+// Downloads open the app's download page, which Jira confirms in a popup.
+const POPUP_HINT = 'Click Continue in the Atlassian popup to start the download.';
+const workItems = count => (count != null ? ` · ${count} work items` : '');
+const elapsed = ms => {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`;
+};
+const progressMessage = (name, state, ms) => {
+  if (state === 'queued') return `Waiting to start ${name}… (${elapsed(ms)})`;
+  const hint = ms > 20000 ? ' Large reports can take a few minutes. Keep this page open.' : '';
+  return `Building ${name}… ${elapsed(ms)} so far.${hint}`;
+};
+
 const hasFilters = options => Boolean(options?.dateFields?.length || options?.choices?.length);
 
 // Shows only the filters the report creator allowed for this report.
@@ -81,6 +94,8 @@ const PortalReports = () => {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [filters, setFilters] = useState({});
+  // Latest private (filtered) copy per report, so it can be downloaded again.
+  const [filteredJobs, setFilteredJobs] = useState({});
 
   const refresh = async () => {
     setError('');
@@ -95,15 +110,33 @@ const PortalReports = () => {
 
   useEffect(() => { refresh(); }, []);
 
+  const openDownload = async (report, url) => {
+    setError('');
+    setMessage(`Opening ${report.name}. ${POPUP_HINT}`);
+    await router.open(url);
+  };
+
+  const downloadFiltered = async report => {
+    try {
+      const { downloadUrl } = await invoke('portal:job-download', { jobId: filteredJobs[report.id] });
+      if (!downloadUrl) throw new Error('The download link could not be created.');
+      await openDownload(report, downloadUrl);
+    } catch (e) {
+      setError(e?.message || 'This filtered copy is no longer available. Please generate it again.');
+      setFilteredJobs(current => ({ ...current, [report.id]: '' }));
+    }
+  };
+
   const run = async report => {
     const selection = selectionFrom(filters[report.id]);
+    const started = Date.now();
     setBusy(report.id);
     setError('');
-    setMessage(`Generating ${report.name}…`);
+    setMessage(progressMessage(report.name, 'queued', 0));
     let jobId = '';
     try {
-      const started = await invoke('portal:run', { reportId: report.id, filters: selection });
-      jobId = started?.jobId || '';
+      const queued = await invoke('portal:run', { reportId: report.id, filters: selection });
+      jobId = queued?.jobId || '';
       if (!jobId) throw new Error('The report could not be queued.');
 
       for (let attempt = 0; attempt < 450; attempt += 1) {
@@ -111,31 +144,35 @@ const PortalReports = () => {
         if (status?.state === 'ready' && selection) {
           // Filtered copies are private to this customer; the job is kept
           // until their next filtered run so the download page can read it.
-          const count = status.issueCount != null ? ` · ${status.issueCount} work items` : '';
-          setMessage(`${report.name} is ready${count}. Starting download…`);
-          const { downloadUrl } = await invoke('portal:job-download', { jobId });
-          if (!downloadUrl) throw new Error('The download link could not be created.');
-          await router.open(downloadUrl);
+          const readyJobId = jobId;
           jobId = '';
+          setFilteredJobs(current => ({ ...current, [report.id]: readyJobId }));
+          const { downloadUrl } = await invoke('portal:job-download', { jobId: readyJobId });
+          if (!downloadUrl) throw new Error('The download link could not be created.');
+          setBusy('');
+          setMessage(`${report.name} is ready${workItems(status.issueCount)}. ${POPUP_HINT}`);
+          await router.open(downloadUrl);
           return;
         }
         if (status?.state === 'ready') {
-          setMessage(`${report.name} is ready${status.issueCount != null ? ` · ${status.issueCount} work items` : ''}.`);
+          setMessage(`${report.name} is ready${workItems(status.issueCount)}.`);
           await invoke('portal:job-cleanup', { jobId }).catch(() => {});
           const items = await invoke('portal:list', {}).catch(() => []);
           setReports(Array.isArray(items) ? items : []);
           const fresh = Array.isArray(items) ? items.find(item => item.id === report.id) : null;
           if (fresh?.downloadUrl) {
-            setMessage(`${report.name} is ready${status.issueCount != null ? ` · ${status.issueCount} work items` : ''}. Starting download…`);
+            setBusy('');
+            setMessage(`${report.name} is ready${workItems(status.issueCount)}. ${POPUP_HINT}`);
             await router.open(fresh.downloadUrl);
           }
           return;
         }
         if (status?.state === 'failed') throw new Error(status.message || 'Report generation failed.');
         if (status?.state === 'missing') throw new Error('The report job could not be found.');
+        setMessage(progressMessage(report.name, status?.state, Date.now() - started));
         await wait(2000);
       }
-      throw new Error('The report is taking longer than expected. Please try again shortly.');
+      throw new Error(`${report.name} is still generating after ${elapsed(Date.now() - started)}. Try again later, or add a date filter to make the report smaller.`);
     } catch (e) {
       setError(e?.message || String(e));
       setMessage('');
@@ -168,7 +205,7 @@ const PortalReports = () => {
 
           {report.allowDownload && report.latest && report.downloadUrl ? (
             <Inline space="space.100">
-              <Button appearance="primary" onClick={() => router.open(report.downloadUrl)}>
+              <Button appearance="primary" onClick={() => openDownload(report, report.downloadUrl)}>
                 Download Excel
               </Button>
             </Inline>
@@ -188,6 +225,9 @@ const PortalReports = () => {
               <Button appearance="primary" isDisabled={busy === report.id} onClick={() => run(report)}>
                 {busy === report.id ? 'Generating…' : selectionFrom(filters[report.id]) ? 'Generate filtered report' : 'Generate fresh report'}
               </Button>
+              {filteredJobs[report.id] && busy !== report.id ? (
+                <Button onClick={() => downloadFiltered(report)}>Download filtered copy</Button>
+              ) : null}
             </Inline>
           ) : null}
         </Stack>
