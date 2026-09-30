@@ -4,6 +4,7 @@ import { invoke, view as forgeView } from '@forge/bridge';
 import '@nuvriqo/ui/css';
 import { enableTheme } from '@nuvriqo/ui/theme';
 import './styles.css';
+import { Disclosure } from '@nuvriqo/ui/react';
 import CustomerFilters from './CustomerFilters.jsx';
 import '../../nuvriqo-v1.css';
 
@@ -76,17 +77,17 @@ function App(){
     <section className="panel">
       <label className="check"><input type="checkbox" checked={cfg.enabled===true} onChange={e=>patch('enabled',e.target.checked)}/>Publish this report to the JSM customer portal</label>
       <div className="grid"><label>Portal access<select value={cfg.accessMode||'all'} onChange={e=>patch('accessMode',e.target.value)}><option value="all">All signed-in portal customers in selected service projects</option><option value="selected">Only selected users and organisations</option></select></label><label>Actions<div className="checks"><label><input type="checkbox" checked={cfg.allowDownload!==false} onChange={e=>patch('allowDownload',e.target.checked)}/>Download latest</label><label><input type="checkbox" checked={cfg.allowRun!==false} onChange={e=>patch('allowRun',e.target.checked)}/>Generate on demand</label></div></label></div>
-      <h2>Service projects</h2><p className="help">Choose where this report is available. Leave all unchecked to allow it from any JSM portal where the customer otherwise has access.</p>
-      <div className="options">{serviceDesks.map(d=><label key={d.id}><input type="checkbox" checked={(cfg.serviceDeskIds||[]).includes(String(d.id))} onChange={()=>toggleId('serviceDeskIds',d.id)}/><span>{d.projectName||d.name||`Service project ${d.id}`}</span></label>)}</div>
+      <Disclosure title="Service projects" meta={(cfg.serviceDeskIds||[]).length?`${(cfg.serviceDeskIds||[]).length} selected`:'All service projects'}><p className="help">Choose where this report is available. Leave all unchecked to allow it from any JSM portal where the customer otherwise has access.</p>
+      <div className="options">{serviceDesks.map(d=><label key={d.id}><input type="checkbox" checked={(cfg.serviceDeskIds||[]).includes(String(d.id))} onChange={()=>toggleId('serviceDeskIds',d.id)}/><span>{d.projectName||d.name||`Service project ${d.id}`}</span></label>)}</div></Disclosure>
 
       {cfg.accessMode==='selected'&&<>
-        <h2>Selected portal users</h2><div className="searchRow"><input value={customerQuery} onChange={e=>setCustomerQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();searchCustomers()}}} placeholder="Search name or email"/><button disabled={busy} onClick={searchCustomers}>Search</button></div>
+        <Disclosure title="Selected portal users" meta={`${selectedUsers.length} selected`}><div className="searchRow"><input value={customerQuery} onChange={e=>setCustomerQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();searchCustomers()}}} placeholder="Search name or email"/><button disabled={busy} onClick={searchCustomers}>Search</button></div>
         {!!selectedUsers.length&&<div className="chips">{selectedUsers.map(id=>{const u=knownUsers[id];return <span key={id}>{u?.displayName||u?.emailAddress||id}<button onClick={()=>toggleId('userAccountIds',id)}>×</button></span>})}</div>}
         {!!customerResults.length&&<div className="results">{customerResults.map(u=>{
   const secondary=u.emailAddress||u.email||'Portal customer';
   return <div key={u.accountId||u.name}><div><strong>{u.displayName||u.name||'Portal customer'}</strong><small>{secondary}</small></div><button disabled={selectedUsers.includes(String(u.accountId))} onClick={()=>toggleId('userAccountIds',u.accountId)}>Add</button></div>
-})}</div>}
-        <h2>Selected organisations</h2><div className="options">{organizations.map(o=><label key={o.id}><input type="checkbox" checked={selectedOrgs.includes(String(o.id))} onChange={()=>toggleId('organizationIds',o.id)}/><span>{o.name}</span></label>)}</div>
+})}</div>}</Disclosure>
+        <Disclosure title="Selected organisations" meta={`${selectedOrgs.length} selected`}><div className="options">{organizations.map(o=><label key={o.id}><input type="checkbox" checked={selectedOrgs.includes(String(o.id))} onChange={()=>toggleId('organizationIds',o.id)}/><span>{o.name}</span></label>)}</div></Disclosure>
       </>}
       {cfg.allowRun!==false&&<CustomerFilters value={cfg.filters} disabled={busy} onChange={v=>patch('filters',v)}/>}
       <div className="info">Portal users must be signed in. Restricted reports are checked against the customer's Atlassian account and JSM organisation memberships before they are listed, generated or downloaded.</div>

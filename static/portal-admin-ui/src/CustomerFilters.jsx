@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { invoke } from '@forge/bridge';
+import { Disclosure } from '@nuvriqo/ui/react';
 
 // Used until the creator saves their own choice, so existing reports keep
 // offering the standard date fields.
@@ -15,6 +16,7 @@ export default function CustomerFilters({ value, onChange, disabled }) {
   const [valuesByField, setValuesByField] = useState({});
   const [loading, setLoading] = useState('');
   const [error, setError] = useState('');
+  const [justAdded, setJustAdded] = useState([]);
 
   const filters = value || { dateFields: DEFAULT_DATE_FIELDS, choices: [] };
   const usingDefaults = !value;
@@ -51,6 +53,7 @@ export default function CustomerFilters({ value, onChange, disabled }) {
   const addChoice = async fieldId => {
     const field = fields.choiceFields.find(f => f.id === fieldId);
     if (!field || filters.choices.some(c => c.id === fieldId)) return;
+    setJustAdded(current => [...current, field.id]);
     update({ choices: [...filters.choices, { id: field.id, label: field.name, ...(field.match ? { match: field.match } : {}), values: [] }] });
     await loadValues(field.id);
   };
@@ -76,30 +79,33 @@ export default function CustomerFilters({ value, onChange, disabled }) {
     {usingDefaults && <p className="help">This report offers the standard date fields. Change the selection to customise it.</p>}
     {error && <div className="notice">{error}</div>}
 
-    <h3>Date fields</h3>
-    <div className="options">{dateOptions.map(f => <label key={f.id}>
-      <input type="checkbox" disabled={disabled} checked={filters.dateFields.some(d => d.id === f.id)} onChange={() => toggleDate(f)}/>
-      <span>{f.name}</span>
-    </label>)}</div>
+    <Disclosure title="Date fields" meta={`${filters.dateFields.length} selected`}>
+      <div className="options">{dateOptions.map(f => <label key={f.id}>
+        <input type="checkbox" disabled={disabled} checked={filters.dateFields.some(d => d.id === f.id)} onChange={() => toggleDate(f)}/>
+        <span>{f.name}</span>
+      </label>)}</div>
+    </Disclosure>
 
     <h3>Choice fields</h3>
     <p className="help">Add a field, then tick the values customers can choose from. Values you leave unticked are never shown to customers.</p>
     {filters.choices.map(choice => {
       const options = valuesByField[choice.id] || choice.values;
-      return <div className="results filterChoice" key={choice.id}>
-        <div>
-          <div><strong>{choice.label}</strong><small>{choice.values.length ? `${choice.values.length} value${choice.values.length === 1 ? '' : 's'} offered` : 'Tick at least one value, or customers won\'t see this filter'}</small></div>
-          <div className="actions">
-            <button disabled={disabled || !options.length} onClick={() => setChoice(choice.id, { values: options.map(savedValue) })}>Select all</button>
-            <button disabled={disabled || !choice.values.length} onClick={() => setChoice(choice.id, { values: [] })}>Clear</button>
-            <button disabled={disabled} onClick={() => removeChoice(choice.id)}>Remove</button>
-          </div>
+      const offered = choice.values.length
+        ? `${choice.values.length} value${choice.values.length === 1 ? '' : 's'} offered`
+        : 'No values ticked yet';
+      // A field added in this session opens so its values can be ticked straight away.
+      return <Disclosure key={choice.id} title={choice.label} meta={offered} defaultOpen={justAdded.includes(choice.id)}>
+        {!choice.values.length && <p className="help">Tick at least one value, or customers won't see this filter.</p>}
+        <div className="actions filterActions">
+          <button disabled={disabled || !options.length} onClick={() => setChoice(choice.id, { values: options.map(savedValue) })}>Select all</button>
+          <button disabled={disabled || !choice.values.length} onClick={() => setChoice(choice.id, { values: [] })}>Clear</button>
+          <button disabled={disabled} onClick={() => removeChoice(choice.id)}>Remove</button>
         </div>
         <div className="options">{loading === choice.id && !options.length ? <small>Loading values…</small> : options.map(option => <label key={option.id}>
           <input type="checkbox" disabled={disabled} checked={choice.values.some(v => v.id === option.id)} onChange={() => toggleValue(choice, option)}/>
           <span>{option.label}</span>
         </label>)}</div>
-      </div>;
+      </Disclosure>;
     })}
     {!!available.length && <label>Add a choice field<select disabled={disabled} value="" onChange={e => addChoice(e.target.value)}>
       <option value="">Choose a field…</option>
