@@ -1,8 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import ForgeReconciler, {
-  Box, Button, DatePicker, EmptyState, Heading, Inline, Label, Lozenge, SectionMessage, Select, Spinner, Stack, Text, xcss
+  Box, Button, DatePicker, Heading, Inline, Label, Lozenge, SectionMessage, Select, Spinner, Stack, Text, useProductContext, xcss
 } from '@forge/react';
 import { invoke, router } from '@forge/bridge';
+
+// The portal subheader is drawn on every portal page (help centre, raise a
+// request, view request, approvals, profile, my requests). Reports only
+// belong on the portal's main page.
+const SHOWN_ON_PAGES = ['portal'];
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const NO_DATE_FILTER = { label: 'All dates', value: '' };
@@ -199,6 +204,12 @@ const PortalReports = () => {
   // Latest private (filtered) copy per report, so it can be downloaded again.
   const [filteredJobs, setFilteredJobs] = useState({});
 
+  // extension.page says which portal page this is. Until the context loads,
+  // show nothing; if a host doesn't report the page, keep the old behaviour.
+  const context = useProductContext();
+  const page = context?.extension?.page;
+  const shown = Boolean(context) && (!page || SHOWN_ON_PAGES.includes(page));
+
   const setStatus = (reportId, status) => setStatuses(current => ({ ...current, [reportId]: status }));
 
   const refresh = async () => {
@@ -212,7 +223,8 @@ const PortalReports = () => {
     }
   };
 
-  useEffect(() => { refresh(); }, []);
+  // Only load reports on pages where the box is shown.
+  useEffect(() => { if (shown) refresh(); }, [shown]);
 
   const openDownload = async (report, url) => {
     setStatus(report.id, { kind: 'info', title: 'Opening download', text: POPUP_HINT });
@@ -295,20 +307,18 @@ const PortalReports = () => {
     }
   };
 
+  // The box only appears once the customer has at least one report to see.
+  // Nothing is drawn while loading or for customers without reports; a load
+  // failure is logged instead of putting an error on every customer's portal.
+  if (listError) console.error('Portal Reports could not be loaded:', listError);
+  if (!shown || !reports?.length) return null;
+
   return (
     <Stack space="space.200">
       <Stack space="space.050">
         <Heading size="medium">Reports</Heading>
         <Text color="color.text.subtle">Download the latest published copy, or generate a fresh one filtered to what you need.</Text>
       </Stack>
-
-      {listError ? <SectionMessage appearance="error" title="Reports could not be loaded"><Text>{listError}</Text></SectionMessage> : null}
-      {reports === null ? (
-        <Inline space="space.100" alignBlock="center"><Spinner size="medium" /><Text>Loading your reports…</Text></Inline>
-      ) : null}
-      {reports !== null && reports.length === 0 && !listError ? (
-        <EmptyState header="No reports yet" description="Reports shared with you by the service desk will appear here." />
-      ) : null}
 
       {reports?.map(report => (
         <ReportCard
