@@ -12,11 +12,25 @@ const SHOWN_ON_PAGES = ['portal'];
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const NO_DATE_FILTER = { label: 'All dates', value: '' };
 
-// Nuvriqo UI Kit card and inner panel (tokens only, so dark mode works).
-const cardStyle = xcss({
+// Styled like a Nuvriqo Portal+ section, so the box reads as part of the same
+// page when Portal+ is on the portal: an outer section card with a small
+// uppercase label, and each report as an inner panel. Tokens only, so light
+// and dark mode both work.
+const sectionStyle = xcss({
   backgroundColor: 'elevation.surface.raised',
+  borderColor: 'color.border',
+  borderStyle: 'solid',
+  borderWidth: 'border.width',
+  borderRadius: 'border.radius.400',
   boxShadow: 'elevation.shadow.raised',
-  borderRadius: 'border.radius.200',
+  padding: 'space.250'
+});
+const cardStyle = xcss({
+  backgroundColor: 'elevation.surface.sunken',
+  borderColor: 'color.border',
+  borderStyle: 'solid',
+  borderWidth: 'border.width',
+  borderRadius: 'border.radius.300',
   padding: 'space.200'
 });
 // Fixed widths stop the pickers shrinking to fit "Any", which squeezed the
@@ -29,8 +43,11 @@ const Field = ({ wide, children }) => (
   </Box>
 );
 const panelStyle = xcss({
-  backgroundColor: 'elevation.surface.sunken',
-  borderRadius: 'border.radius.100',
+  backgroundColor: 'elevation.surface.raised',
+  borderColor: 'color.border',
+  borderStyle: 'solid',
+  borderWidth: 'border.width',
+  borderRadius: 'border.radius.200',
   padding: 'space.150'
 });
 
@@ -314,10 +331,12 @@ const PortalReports = () => {
   if (!shown || !reports?.length) return null;
 
   return (
+    <Box xcss={sectionStyle}>
     <Stack space="space.200">
       <Stack space="space.050">
-        <Heading size="medium">Reports</Heading>
-        <Text color="color.text.subtle">Download the latest published copy, or generate a fresh one filtered to what you need.</Text>
+        <Text size="small" weight="bold" color="color.text.subtlest">EXCEL REPORTS</Text>
+        <Heading size="small">Reports</Heading>
+        <Text size="small" color="color.text.subtlest">Download the latest published copy, or generate a fresh one filtered to what you need.</Text>
       </Stack>
 
       {reports?.map(report => (
@@ -336,6 +355,7 @@ const PortalReports = () => {
         />
       ))}
     </Stack>
+    </Box>
   );
 };
 
