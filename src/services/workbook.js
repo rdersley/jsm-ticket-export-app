@@ -72,6 +72,8 @@ const display = value => {
   const linkedIssue = issueLinkDisplay(value);
   if (linkedIssue) return linkedIssue;
 
+  // Cascading selects hold the child option under the parent: "Parent - Child".
+  if (value.child?.value != null && value.value != null) return `${value.value} - ${value.child.value}`;
   if (value.displayName) return value.displayName;
   if (value.name) return value.name;
   if (value.value != null && typeof value.value !== 'object') return value.value;
