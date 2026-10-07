@@ -25,7 +25,8 @@
     "exceljs": "^4.4.0"
   },
   "overrides": {
-    "linkify-it": "^5.0.2"
+    "linkify-it": "^5.0.2",
+    "prosemirror-view": "^1.42.3"
   },
   "devDependencies": {
     "@nuvriqo/ui": "github:rdersley/nuvriqo-ui#v0.4.0",
