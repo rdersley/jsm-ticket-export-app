@@ -96,3 +96,14 @@ test('Linked Issues export only Jira ticket keys', async () => {
   const wb = await workbookFromReport(report, data);
   assert.equal(wb.getWorksheet('Issues').getCell('A2').value, 'HW-46874\nSD-32023');
 });
+
+test('cascading select values export the parent and child option', async () => {
+  const report = { ...baseReport, template: { ...baseReport.template, columns: [{ fieldId: 'customfield_10050', label: 'Category', width: 30 }] } };
+  const data = [
+    { key: 'DEMO-1', fields: { customfield_10050: { self: 'https://example', value: 'Hardware', id: '10100', child: { self: 'https://example', value: 'Laptop', id: '10101' } } } },
+    { key: 'DEMO-2', fields: { customfield_10050: { self: 'https://example', value: 'Software', id: '10200' } } }
+  ];
+  const wb = await workbookFromReport(report, data); const ws = wb.getWorksheet('Issues');
+  assert.equal(ws.getCell('A2').value, 'Hardware - Laptop');
+  assert.equal(ws.getCell('A3').value, 'Software');
+});

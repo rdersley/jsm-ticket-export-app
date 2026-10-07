@@ -26,6 +26,7 @@ const display = value => {
   if (value == null) return '';
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
   if (Array.isArray(value)) return value.map(display).filter(Boolean).join(', ');
+  if (value.child?.value != null && value.value != null) return `${value.value} - ${value.child.value}`;
   return value.value ?? value.name ?? value.displayName ?? value.key ?? JSON.stringify(value);
 };
 
