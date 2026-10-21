@@ -20,7 +20,7 @@ export default function CustomerFilters({ value, onChange, disabled }) {
 
   const filters = value || { dateFields: DEFAULT_DATE_FIELDS, choices: [] };
   const usingDefaults = !value;
-  const update = next => onChange({ dateFields: filters.dateFields, choices: filters.choices, ...next });
+  const update = next => onChange({ dateFields: filters.dateFields, choices: filters.choices, openTickets: filters.openTickets === true, ...next });
 
   const loadValues = async fieldId => {
     if (valuesByField[fieldId]) return valuesByField[fieldId];
@@ -84,6 +84,14 @@ export default function CustomerFilters({ value, onChange, disabled }) {
         <input type="checkbox" disabled={disabled} checked={filters.dateFields.some(d => d.id === f.id)} onChange={() => toggleDate(f)}/>
         <span>{f.name}</span>
       </label>)}</div>
+    </Disclosure>
+
+    <Disclosure title="Open tickets" meta={filters.openTickets ? 'Offered' : 'Not offered'}>
+      <label className="check">
+        <input type="checkbox" disabled={disabled} checked={filters.openTickets === true} onChange={e => update({ openTickets: e.target.checked })}/>
+        Let customers show only work items that were open at a point in time
+      </label>
+      <p className="help">Customers choose Open now, Open at end of last week, Open at end of last month, or Open on a date. A work item counts as open if it had been created by then and wasn't resolved yet. Columns in the export still show today's values.</p>
     </Disclosure>
 
     <h3>Choice fields</h3>
