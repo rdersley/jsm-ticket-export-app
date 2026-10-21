@@ -1,4 +1,5 @@
 import { searchIssues } from './jira.js';
+import { searchFieldIds } from './textFields.js';
 import { buildWorkbook } from './workbook.js';
 import { addRun } from './runHistory.js';
 import { sendReportEmail } from './email.js';
@@ -24,7 +25,7 @@ export async function runReport(report, { delivery = false, history = true, mode
   const runMode = mode || (delivery ? 'scheduled' : 'manual');
   try {
     validateReport(report, delivery);
-    const fields = (report.template.columns || []).map(c => c.fieldId).filter(x => x !== 'key');
+    const fields = searchFieldIds((report.template.columns || []).map(c => c.fieldId).filter(x => x !== 'key'));
     const result = await searchIssues(report.source.jql, fields, Number(report.source?.maxIssues || 500));
     const issues = result.issues || [];
     const buffer = await buildWorkbook(report, issues);

@@ -1,4 +1,5 @@
 import api, { route } from '@forge/api';
+import { VIRTUAL_FIELDS } from './textFields.js';
 
 async function jsonOrThrow(response, label) {
   if (!response.ok) {
@@ -51,15 +52,18 @@ const FALLBACK_FIELDS = [
   ['resolutiondate', 'Resolution date']
 ].map(([id, name]) => ({ id, name, custom: false, schema: '' }));
 
+const REPORT_FIELDS = VIRTUAL_FIELDS.map(({ id, name }) => ({ id, name, custom: false, schema: 'string' }));
+
 export async function listFields() {
   return withTimeout((async () => {
     const response = await api.asApp().requestJira(route`/rest/api/3/field`);
     const fields = await jsonOrThrow(response, 'Loading Jira fields');
     return fields
       .filter(f => f.id && f.name)
-      .map(f => ({ id: f.id, name: f.name, custom: Boolean(f.custom), schema: f.schema?.type || '' }))
+      .map(f => ({ id: f.id, name: f.id === 'comment' ? 'Comment (public only)' : f.name, custom: Boolean(f.custom), schema: f.schema?.type || '' }))
+      .concat(REPORT_FIELDS)
       .sort((a,b) => a.name.localeCompare(b.name));
-  })(), 8000, FALLBACK_FIELDS);
+  })(), 8000, [...FALLBACK_FIELDS, ...REPORT_FIELDS]);
 }
 
 export async function listFilters() {
