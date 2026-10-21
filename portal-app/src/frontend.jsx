@@ -60,7 +60,8 @@ const selectionFrom = state => {
     to: state.to || null
   } : null;
   const choices = Object.fromEntries(Object.entries(state?.choices || {}).filter(([, ids]) => ids?.length));
-  return date || Object.keys(choices).length ? { date, choices } : null;
+  const open = state?.open ? { preset: state.open, date: state.openDate || null } : null;
+  return date || open || Object.keys(choices).length ? { date, choices, open } : null;
 };
 
 // Downloads open the app's download page, which Jira confirms in a popup.
@@ -78,7 +79,8 @@ const progressMessage = (state, ms) => {
   return `Building your report… ${elapsed(ms)} so far.${hint}`;
 };
 
-const hasFilters = options => Boolean(options?.dateFields?.length || options?.choices?.length);
+const hasFilters = options => Boolean(options?.dateFields?.length || options?.choices?.length || options?.openPresets?.length);
+const ALL_WORK_ITEMS = { label: 'All work items', value: '' };
 
 // Shows only the filters the report creator allowed for this report.
 const FilterControls = ({ reportId, options, state, onChange }) => {
@@ -88,6 +90,8 @@ const FilterControls = ({ reportId, options, state, onChange }) => {
   const preset = presetOptions.find(o => o.value === (state?.preset || 'last30')) || presetOptions[0];
   const update = changes => onChange({ ...(state || {}), ...changes });
   const setChoice = (fieldId, ids) => update({ choices: { ...(state?.choices || {}), [fieldId]: ids } });
+  const openOptions = [ALL_WORK_ITEMS, ...(options.openPresets || []).map(p => ({ label: p.label, value: p.id }))];
+  const open = openOptions.find(o => o.value === (state?.open || '')) || ALL_WORK_ITEMS;
 
   return (
     <Inline space="space.200" shouldWrap alignBlock="end">
@@ -114,6 +118,18 @@ const FilterControls = ({ reportId, options, state, onChange }) => {
             <DatePicker id={`date-to-${reportId}`} value={state?.to || ''} onChange={value => update({ to: value || '' })} />
           </Field>
         </>
+      ) : null}
+      {options.openPresets?.length ? (
+        <Field>
+          <Label labelFor={`open-${reportId}`}>Open tickets</Label>
+          <Select inputId={`open-${reportId}`} options={openOptions} value={open} onChange={o => update({ open: o?.value || '' })} />
+        </Field>
+      ) : null}
+      {open.value === 'onDate' ? (
+        <Field>
+          <Label labelFor={`open-date-${reportId}`}>Open on</Label>
+          <DatePicker id={`open-date-${reportId}`} value={state?.openDate || ''} onChange={value => update({ openDate: value || '' })} />
+        </Field>
       ) : null}
       {(options.choices || []).map(choice => {
         const values = choice.values.map(v => ({ label: v.label, value: v.id }));

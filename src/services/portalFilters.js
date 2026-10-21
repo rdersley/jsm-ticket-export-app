@@ -3,6 +3,7 @@
 // on; customers can only select from that list, so JQL is built entirely from
 // server-side configuration.
 import { DATE_FIELDS, DATE_PRESETS, normalizeDateRange, buildDateClause, describeDateRange } from './dateFilter.js';
+import { OPEN_PRESETS, normalizeOpenFilter, buildOpenClause } from './openFilter.js';
 
 export const CHOICE_SYSTEM_FIELDS = [
   { id: 'status', label: 'Status', jql: 'status' },
@@ -68,7 +69,8 @@ export function normalizeFilterConfig(raw) {
     })
     .filter(f => jqlFieldFor(f.id, 'choice') && f.values.length && !seen.has(`c:${f.id}`) && seen.add(`c:${f.id}`))
     .slice(0, MAX_CHOICE_FIELDS);
-  return { dateFields, choices };
+  // "Open tickets" is opt-in per report.
+  return { dateFields, choices, ...(raw.openTickets === true ? { openTickets: true } : {}) };
 }
 
 /** The filter settings in force for a report (saved, or the standard defaults). */
@@ -85,20 +87,21 @@ export function customerFilterOptions(raw) {
   return {
     dateFields: config.dateFields,
     presets: DATE_PRESETS,
-    choices: config.choices.map(({ id, label, values }) => ({ id, label, values: values.map(v => ({ id: v.id, label: v.label })) }))
+    choices: config.choices.map(({ id, label, values }) => ({ id, label, values: values.map(v => ({ id: v.id, label: v.label })) })),
+    openPresets: config.openTickets ? OPEN_PRESETS : []
   };
 }
 
 /**
  * Validates a customer's selection against the report's filter settings.
- * Accepts { date: { field, preset, from, to }, choices: { [fieldId]: [valueId] } }
+ * Accepts { date: { field, preset, from, to }, choices: { [fieldId]: [valueId] }, open: { preset, date } }
  * or the older { field, preset, from, to } date-only shape.
  * Returns { clauses, labels } or null when nothing was selected.
  */
 export function resolveCustomerFilters(input, rawConfig) {
   if (!input || typeof input !== 'object') return null;
   const config = effectiveFilterConfig(rawConfig);
-  const selection = 'date' in input || 'choices' in input ? input : { date: input };
+  const selection = 'date' in input || 'choices' in input || 'open' in input ? input : { date: input };
   const clauses = [];
   const labels = [];
 
@@ -128,6 +131,14 @@ export function resolveCustomerFilters(input, rawConfig) {
       clauses.push(`${jqlField} in (${terms.join(', ')})`);
     }
     labels.push(`${field.label} ${picked.map(v => v.label).join(', ')}`);
+  }
+
+  const open = normalizeOpenFilter(selection.open);
+  if (open) {
+    if (!config.openTickets) throw new Error('The open tickets filter is not available for this report.');
+    const { clause, label } = buildOpenClause(open);
+    clauses.push(clause);
+    labels.push(label);
   }
 
   return clauses.length ? { clauses, labels } : null;

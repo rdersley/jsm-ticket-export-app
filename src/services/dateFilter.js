@@ -20,7 +20,7 @@ export const DATE_PRESETS = [
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_CUSTOM_DAYS = 3660;
 
-function parseIsoDate(value, label) {
+export function parseIsoDate(value, label) {
   const text = String(value || '').trim();
   if (!ISO_DATE.test(text)) throw new Error(`${label} must be a date in YYYY-MM-DD format.`);
   const date = new Date(`${text}T00:00:00Z`);
@@ -30,7 +30,7 @@ function parseIsoDate(value, label) {
   return date;
 }
 
-const isoDay = date => date.toISOString().slice(0, 10);
+export const isoDay = date => date.toISOString().slice(0, 10);
 
 /** Validates a preset or custom range; returns { preset, from?, to? } or throws. */
 export function normalizeDateRange(input) {
