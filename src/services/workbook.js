@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { isTextField, textFieldValue } from './textFields.js';
 
 const JIRA_KEY = /^[A-Z][A-Z0-9_]*-\d+$/i;
 const isIssueLinkColumn = column => column?.fieldId === 'issuelinks' || /(?:linked?\s*issues?|issue\s*links?)/i.test(String(column?.label || ''));
@@ -144,7 +145,7 @@ export async function buildWorkbook(report, issues) {
       const cell = row.getCell(i + 1);
       const raw = c.fieldId === 'key' ? issue.key : issue.fields?.[c.fieldId];
       const linkValue = isIssueLinkColumn(c) ? displayIssueLinks(raw) : null;
-      const shown = linkValue ?? display(raw);
+      const shown = isTextField(c.fieldId) ? textFieldValue(c.fieldId, issue.fields) : linkValue ?? display(raw);
       if (options.autoDateFormat !== false && looksLikeDateField(c.fieldId) && isoDate(shown)) {
         cell.value = new Date(shown);
         cell.numFmt = options.dateFormat || 'dd/mm/yyyy hh:mm';
