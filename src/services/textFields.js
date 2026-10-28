@@ -14,14 +14,27 @@ const CELL_LIMIT = 32000;
 export const VIRTUAL_FIELDS = [
   { id: 'erm:descriptionExcerpt', name: 'Description (first 300 characters)', source: 'description' },
   { id: 'erm:latestPublicComment', name: 'Latest public comment', source: 'comment' },
-  { id: 'erm:latestPublicCommentDate', name: 'Latest public comment date', source: 'comment' }
+  { id: 'erm:latestPublicCommentDate', name: 'Latest public comment date', source: 'comment' },
+  // Whole days from created to resolved, or to now while the ticket is open.
+  { id: 'erm:ageDays', name: 'Age (days)', source: ['created', 'resolutiondate'] }
 ];
 const VIRTUAL_BY_ID = new Map(VIRTUAL_FIELDS.map(f => [f.id, f]));
 
 export const isTextField = id => VIRTUAL_BY_ID.has(id) || id === 'description' || id === 'comment';
 
 // Jira field ids to search for, with report-only columns swapped for their source field.
-export const searchFieldIds = ids => [...new Set(ids.map(id => VIRTUAL_BY_ID.get(id)?.source || id))];
+export const searchFieldIds = ids => [...new Set(ids.flatMap(id => VIRTUAL_BY_ID.get(id)?.source || id))];
+
+const DAY_MS = 86400000;
+
+/** Whole days a ticket has been open: created to resolved, or to now. Blank without a created date. */
+export function ageDays(fields = {}, now = Date.now()) {
+  const created = Date.parse(fields.created || '');
+  if (!Number.isFinite(created)) return '';
+  const resolved = Date.parse(fields.resolutiondate || '');
+  const end = Number.isFinite(resolved) ? resolved : now;
+  return Math.max(0, Math.floor((end - created) / DAY_MS));
+}
 
 function adfText(node) {
   if (!node || typeof node !== 'object') return '';
@@ -55,7 +68,8 @@ export function publicComments(commentField) {
 }
 
 // Cell value for a description, comment or report-only column.
-export function textFieldValue(fieldId, fields = {}) {
+export function textFieldValue(fieldId, fields = {}, now = Date.now()) {
+  if (fieldId === 'erm:ageDays') return ageDays(fields, now);
   if (fieldId === 'description') return fit(plainText(fields.description));
   if (fieldId === 'erm:descriptionExcerpt') return excerpt(fields.description);
   const shared = publicComments(fields.comment);
