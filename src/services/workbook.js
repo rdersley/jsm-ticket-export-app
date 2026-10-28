@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { isTextField, textFieldValue } from './textFields.js';
+import { isTextField, plainText, textFieldValue } from './textFields.js';
 
 const JIRA_KEY = /^[A-Z][A-Z0-9_]*-\d+$/i;
 const isIssueLinkColumn = column => column?.fieldId === 'issuelinks' || /(?:linked?\s*issues?|issue\s*links?)/i.test(String(column?.label || ''));
@@ -69,6 +69,8 @@ const display = value => {
   if (value == null) return '';
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
   if (Array.isArray(value)) return value.map(display).filter(v => v !== '').join(', ');
+  // Paragraph (multi-line) text fields come back as Atlassian Document Format.
+  if (value.type === 'doc' && Array.isArray(value.content)) return plainText(value).slice(0, 32000);
 
   const linkedIssue = issueLinkDisplay(value);
   if (linkedIssue) return linkedIssue;

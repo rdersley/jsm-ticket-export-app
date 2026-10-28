@@ -76,3 +76,10 @@ test('empty description and comments export as blank cells', async () => {
 test('excerpt keeps short text as is', () => {
   assert.equal(excerpt('  Short   text '), 'Short text');
 });
+
+test('any paragraph text field exports as plain text', async () => {
+  const wb = new ExcelJS.Workbook();
+  const columns = [{ fieldId: 'key', label: 'Key' }, { fieldId: 'customfield_200', label: 'Ticket overview' }];
+  await wb.xlsx.load(await buildWorkbook({ name: 'r', template: { columns, workbook: { footerInfo: false } } }, [{ key: 'RYR-9', fields: { customfield_200: doc('The vPOS at STN is stuck.', 'Support has asked for a restart.') } }]));
+  assert.equal(wb.worksheets[0].getCell('B2').value, 'The vPOS at STN is stuck.\nSupport has asked for a restart.');
+});
