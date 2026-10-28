@@ -20,10 +20,23 @@ export const VIRTUAL_FIELDS = [
 ];
 const VIRTUAL_BY_ID = new Map(VIRTUAL_FIELDS.map(f => [f.id, f]));
 
-export const isTextField = id => VIRTUAL_BY_ID.has(id) || id === 'description' || id === 'comment';
+// Cascading selects can also be exported as two columns, parent and child,
+// alongside the combined "Parent - Child" column. Their ids carry the field:
+// erm:cascadeParent:customfield_10300 / erm:cascadeChild:customfield_10300.
+const CASCADE_PART = /^erm:cascade(Parent|Child):(customfield_\d+)$/;
+export const cascadePart = id => {
+  const match = String(id || '').match(CASCADE_PART);
+  return match ? { part: match[1] === 'Parent' ? 'parent' : 'child', source: match[2] } : null;
+};
+export const cascadeColumns = ({ id, name }) => [
+  { id: `erm:cascadeParent:${id}`, name: `${name} (parent)` },
+  { id: `erm:cascadeChild:${id}`, name: `${name} (child)` }
+];
+
+export const isTextField = id => VIRTUAL_BY_ID.has(id) || Boolean(cascadePart(id)) || id === 'description' || id === 'comment';
 
 // Jira field ids to search for, with report-only columns swapped for their source field.
-export const searchFieldIds = ids => [...new Set(ids.flatMap(id => VIRTUAL_BY_ID.get(id)?.source || id))];
+export const searchFieldIds = ids => [...new Set(ids.flatMap(id => VIRTUAL_BY_ID.get(id)?.source || cascadePart(id)?.source || id))];
 
 const DAY_MS = 86400000;
 
@@ -70,6 +83,11 @@ export function publicComments(commentField) {
 // Cell value for a description, comment or report-only column.
 export function textFieldValue(fieldId, fields = {}, now = Date.now()) {
   if (fieldId === 'erm:ageDays') return ageDays(fields, now);
+  const cascade = cascadePart(fieldId);
+  if (cascade) {
+    const value = fields[cascade.source];
+    return String((cascade.part === 'parent' ? value?.value : value?.child?.value) ?? '');
+  }
   if (fieldId === 'description') return fit(plainText(fields.description));
   if (fieldId === 'erm:descriptionExcerpt') return excerpt(fields.description);
   const shared = publicComments(fields.comment);

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
 import { buildWorkbook } from '../src/services/workbook.js';
-import { ageDays, searchFieldIds, excerpt } from '../src/services/textFields.js';
+import { ageDays, searchFieldIds, excerpt, cascadePart, cascadeColumns } from '../src/services/textFields.js';
 
 const doc = (...paragraphs) => ({ type: 'doc', version: 1, content: paragraphs.map(text => ({ type: 'paragraph', content: [{ type: 'text', text }] })) });
 
@@ -98,4 +98,34 @@ test('age column exports as a number', async () => {
   const columns = [{ fieldId: 'key', label: 'Key' }, { fieldId: 'erm:ageDays', label: 'Age (days)' }];
   await wb.xlsx.load(await buildWorkbook({ name: 'r', template: { columns, workbook: { footerInfo: false } } }, [{ key: 'RYR-9', fields: { created: '2026-09-01T09:00:00.000+0000', resolutiondate: '2026-09-15T10:00:00.000+0000' } }]));
   assert.equal(wb.worksheets[0].getCell('B2').value, 14);
+});
+
+test('cascading selects split into parent and child columns next to the combined one', async () => {
+  const wb = new ExcelJS.Workbook();
+  const columns = [
+    { fieldId: 'key', label: 'Key' },
+    { fieldId: 'customfield_10300', label: 'Module type' },
+    { fieldId: 'erm:cascadeParent:customfield_10300', label: 'Module type (parent)' },
+    { fieldId: 'erm:cascadeChild:customfield_10300', label: 'Module type (child)' }
+  ];
+  const issues = [
+    { key: 'RYR-1', fields: { customfield_10300: { value: 'Access Control', child: { value: 'Account Suspended' } } } },
+    { key: 'RYR-2', fields: { customfield_10300: { value: 'Hardware' } } },
+    { key: 'RYR-3', fields: {} }
+  ];
+  await wb.xlsx.load(await buildWorkbook({ name: 'r', template: { columns, workbook: { footerInfo: false } } }, issues));
+  const ws = wb.worksheets[0];
+  assert.deepEqual([ws.getCell('B2').value, ws.getCell('C2').value, ws.getCell('D2').value], ['Access Control - Account Suspended', 'Access Control', 'Account Suspended']);
+  assert.equal(ws.getCell('C3').value, 'Hardware');
+  assert.ok(!ws.getCell('D3').value, 'a parent without a child leaves the child cell blank');
+  assert.ok(!ws.getCell('C4').value && !ws.getCell('D4').value);
+});
+
+test('parent and child columns search for the cascading field itself', () => {
+  assert.deepEqual(
+    searchFieldIds(['erm:cascadeParent:customfield_10300', 'erm:cascadeChild:customfield_10300', 'summary']),
+    ['customfield_10300', 'summary']
+  );
+  assert.equal(cascadePart('erm:cascadeParent:summary'), null);
+  assert.deepEqual(cascadeColumns({ id: 'customfield_10300', name: 'Module type' }).map(c => c.name), ['Module type (parent)', 'Module type (child)']);
 });

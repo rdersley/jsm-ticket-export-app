@@ -1,5 +1,5 @@
 import api, { route } from '@forge/api';
-import { VIRTUAL_FIELDS } from './textFields.js';
+import { VIRTUAL_FIELDS, cascadeColumns } from './textFields.js';
 
 async function jsonOrThrow(response, label) {
   if (!response.ok) {
@@ -58,10 +58,14 @@ export async function listFields() {
   return withTimeout((async () => {
     const response = await api.asApp().requestJira(route`/rest/api/3/field`);
     const fields = await jsonOrThrow(response, 'Loading Jira fields');
-    return fields
-      .filter(f => f.id && f.name)
+    const usable = fields.filter(f => f.id && f.name);
+    // Each cascading select also offers separate parent and child columns.
+    const cascadeParts = usable
+      .filter(f => f.schema?.custom === CASCADE_CUSTOM)
+      .flatMap(f => cascadeColumns(f).map(c => ({ ...c, custom: true, schema: 'string' })));
+    return usable
       .map(f => ({ id: f.id, name: f.id === 'comment' ? 'Comment (public only)' : f.name, custom: Boolean(f.custom), schema: f.schema?.type || '' }))
-      .concat(REPORT_FIELDS)
+      .concat(cascadeParts, REPORT_FIELDS)
       .sort((a,b) => a.name.localeCompare(b.name));
   })(), 8000, [...FALLBACK_FIELDS, ...REPORT_FIELDS]);
 }
