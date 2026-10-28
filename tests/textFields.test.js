@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
 import { buildWorkbook } from '../src/services/workbook.js';
-import { searchFieldIds, excerpt } from '../src/services/textFields.js';
+import { ageDays, searchFieldIds, excerpt } from '../src/services/textFields.js';
 
 const doc = (...paragraphs) => ({ type: 'doc', version: 1, content: paragraphs.map(text => ({ type: 'paragraph', content: [{ type: 'text', text }] })) });
 
@@ -82,4 +82,20 @@ test('any paragraph text field exports as plain text', async () => {
   const columns = [{ fieldId: 'key', label: 'Key' }, { fieldId: 'customfield_200', label: 'Ticket overview' }];
   await wb.xlsx.load(await buildWorkbook({ name: 'r', template: { columns, workbook: { footerInfo: false } } }, [{ key: 'RYR-9', fields: { customfield_200: doc('The vPOS at STN is stuck.', 'Support has asked for a restart.') } }]));
   assert.equal(wb.worksheets[0].getCell('B2').value, 'The vPOS at STN is stuck.\nSupport has asked for a restart.');
+});
+
+test('age in days: to now while open, to the resolution date once resolved', () => {
+  const now = Date.parse('2026-10-28T12:00:00.000Z');
+  assert.equal(ageDays({ created: '2026-10-18T09:00:00.000+0000' }, now), 10);
+  assert.equal(ageDays({ created: '2026-10-18T09:00:00.000+0000', resolutiondate: '2026-10-21T08:59:00.000+0000' }, now), 2);
+  assert.equal(ageDays({ created: '2026-10-28T11:00:00.000+0000' }, now), 0);
+  assert.equal(ageDays({}, now), '');
+  assert.deepEqual(searchFieldIds(['summary', 'erm:ageDays', 'created']), ['summary', 'created', 'resolutiondate']);
+});
+
+test('age column exports as a number', async () => {
+  const wb = new ExcelJS.Workbook();
+  const columns = [{ fieldId: 'key', label: 'Key' }, { fieldId: 'erm:ageDays', label: 'Age (days)' }];
+  await wb.xlsx.load(await buildWorkbook({ name: 'r', template: { columns, workbook: { footerInfo: false } } }, [{ key: 'RYR-9', fields: { created: '2026-09-01T09:00:00.000+0000', resolutiondate: '2026-09-15T10:00:00.000+0000' } }]));
+  assert.equal(wb.worksheets[0].getCell('B2').value, 14);
 });
