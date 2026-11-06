@@ -1,4 +1,4 @@
-import { searchIssues } from './jira.js';
+import { searchIssues, getSiteUrl, listServiceDeskPortals } from './jira.js';
 import { searchFieldIds } from './textFields.js';
 import { buildWorkbook } from './workbook.js';
 import { addRun } from './runHistory.js';
@@ -20,15 +20,36 @@ function validateReport(report, delivery) {
   }
 }
 
+// Where ticket-key hyperlinks point: the customer portal (default) or Jira.
+// If the site address can't be loaded, keys are written without a link rather
+// than with an api.atlassian.com link customers can't open.
+async function ticketLinkContext(report) {
+  const options = report.template?.workbook || {};
+  if (options.jiraLinks === false) return null;
+  try {
+    const baseUrl = await getSiteUrl();
+    if (!baseUrl) return null;
+    if (options.linkTarget === 'jira') return { baseUrl };
+    // Without the service desk list, fall back to Jira links on the site.
+    const portalByProjectId = await listServiceDeskPortals().catch(() => null);
+    return portalByProjectId ? { baseUrl, portalByProjectId } : { baseUrl };
+  } catch {
+    return null;
+  }
+}
+
 export async function runReport(report, { delivery = false, history = true, mode = null } = {}) {
   const started = Date.now();
   const runMode = mode || (delivery ? 'scheduled' : 'manual');
   try {
     validateReport(report, delivery);
-    const fields = searchFieldIds((report.template.columns || []).map(c => c.fieldId).filter(x => x !== 'key'));
+    const links = await ticketLinkContext(report);
+    const columnFields = searchFieldIds((report.template.columns || []).map(c => c.fieldId).filter(x => x !== 'key'));
+    // Portal links need each work item's project to find its service desk.
+    const fields = links?.portalByProjectId ? [...new Set([...columnFields, 'project'])] : columnFields;
     const result = await searchIssues(report.source.jql, fields, Number(report.source?.maxIssues || 500));
     const issues = result.issues || [];
-    const buffer = await buildWorkbook(report, issues);
+    const buffer = await buildWorkbook(report, issues, { links });
     const workbookBase64 = Buffer.from(buffer).toString('base64');
 
     if (delivery) await sendReportEmail(report, workbookBase64, issues.length);

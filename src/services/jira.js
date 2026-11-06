@@ -70,6 +70,28 @@ export async function listFields() {
   })(), 8000, [...FALLBACK_FIELDS, ...REPORT_FIELDS]);
 }
 
+// Forge returns issue.self as api.atlassian.com/ex/jira/<cloudId>/…, which
+// customers can't open, so ticket links are built from the site's own URL.
+export async function getSiteUrl() {
+  const data = await jsonOrThrow(await api.asApp().requestJira(route`/rest/api/3/serverInfo`), 'Loading the site address');
+  return String(data?.baseUrl || '').replace(/\/+$/, '');
+}
+
+/** Map of Jira project id → service desk (portal) id, for customer portal links. */
+export async function listServiceDeskPortals() {
+  const byProject = new Map();
+  let start = 0;
+  for (let page = 0; page < 20; page += 1) {
+    const response = await api.asApp().requestJira(route`/rest/servicedeskapi/servicedesk?start=${start}&limit=100`, { headers: { Accept: 'application/json' } });
+    const data = await jsonOrThrow(response, 'Loading service projects');
+    const batch = data.values || [];
+    for (const desk of batch) if (desk?.projectId && desk?.id) byProject.set(String(desk.projectId), String(desk.id));
+    if (data.isLastPage !== false || !batch.length) break;
+    start += batch.length;
+  }
+  return byProject;
+}
+
 export async function listFilters() {
   return withTimeout((async () => {
     const response = await api.asApp().requestJira(route`/rest/api/3/filter/search?expand=jql&maxResults=100`);

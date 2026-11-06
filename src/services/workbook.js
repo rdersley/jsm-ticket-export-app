@@ -100,7 +100,24 @@ const argb = (value, fallback) => {
 const looksLikeDateField = id => /(date|time|created|updated|resolved|due|start)/i.test(String(id || ''));
 const isoDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value);
 
-export async function buildWorkbook(report, issues) {
+/**
+ * Hyperlink for a ticket key. `links` comes from the runner: { baseUrl, portalByProjectId? }.
+ * With portal ids, service project tickets open on the customer portal and the
+ * rest in Jira. Without links, a real site URL in issue.self is used; Forge's
+ * api.atlassian.com URLs are never written, since customers can't open them.
+ */
+export function ticketUrl(issue, links) {
+  if (!issue?.key) return '';
+  const key = encodeURIComponent(issue.key);
+  if (links?.baseUrl) {
+    const desk = links.portalByProjectId?.get(String(issue.fields?.project?.id ?? ''));
+    return desk ? `${links.baseUrl}/servicedesk/customer/portal/${desk}/${key}` : `${links.baseUrl}/browse/${key}`;
+  }
+  const base = String(issue.self || '').split('/rest/api/')[0];
+  return base && !/^https:\/\/api\.atlassian\.com\//i.test(base) ? `${base}/browse/${key}` : '';
+}
+
+export async function buildWorkbook(report, issues, { links = null } = {}) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Nuvriqo Excel Report Manager';
   wb.created = new Date();
@@ -157,9 +174,9 @@ export async function buildWorkbook(report, issues) {
       cell.font = { name: fontName, size: bodyFontSize, color: { argb: bodyTextColor } };
       cell.alignment = { vertical: 'top', wrapText: options.wrapText !== false };
 
-      if (c.fieldId === 'key' && options.jiraLinks !== false && issue.self) {
-        const base = issue.self.split('/rest/api/')[0];
-        cell.value = { text: issue.key, hyperlink: `${base}/browse/${issue.key}` };
+      const ticketLink = c.fieldId === 'key' && options.jiraLinks !== false ? ticketUrl(issue, links) : '';
+      if (ticketLink) {
+        cell.value = { text: issue.key, hyperlink: ticketLink };
         cell.font = { name: fontName, size: bodyFontSize, color: { argb: 'FF0C66E4' }, underline: true };
       } else if (typeof shown === 'string' && /^https?:\/\//i.test(shown)) {
         cell.value = { text: shown, hyperlink: shown };
