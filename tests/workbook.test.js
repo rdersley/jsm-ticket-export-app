@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
-import { buildWorkbook } from '../src/services/workbook.js';
+import { buildWorkbook, ticketUrl } from '../src/services/workbook.js';
 
 const baseReport = {
   name: 'Test report',
@@ -106,4 +106,36 @@ test('cascading select values export the parent and child option', async () => {
   const wb = await workbookFromReport(report, data); const ws = wb.getWorksheet('Issues');
   assert.equal(ws.getCell('A2').value, 'Hardware - Laptop');
   assert.equal(ws.getCell('A3').value, 'Software');
+});
+
+const api = 'https://api.atlassian.com/ex/jira/d52c1118-8869-49c2-b95f-ac90027f2cef/rest/api/3/issue/1';
+const portals = new Map([['10010', '12']]);
+
+test('ticket links go to the customer portal for service project tickets', () => {
+  const issue = { key: 'SD-349370', self: api, fields: { project: { id: '10010' } } };
+  assert.equal(ticketUrl(issue, { baseUrl: 'https://retailinmotion.atlassian.net', portalByProjectId: portals }),
+    'https://retailinmotion.atlassian.net/servicedesk/customer/portal/12/SD-349370');
+});
+
+test('tickets outside a service project, or Jira mode, link to the site', () => {
+  const other = { key: 'HW-1', self: api, fields: { project: { id: '99' } } };
+  assert.equal(ticketUrl(other, { baseUrl: 'https://retailinmotion.atlassian.net', portalByProjectId: portals }),
+    'https://retailinmotion.atlassian.net/browse/HW-1');
+  const sd = { key: 'SD-1', self: api, fields: { project: { id: '10010' } } };
+  assert.equal(ticketUrl(sd, { baseUrl: 'https://retailinmotion.atlassian.net' }), 'https://retailinmotion.atlassian.net/browse/SD-1');
+});
+
+test('api.atlassian.com links are never written', async () => {
+  assert.equal(ticketUrl({ key: 'SD-1', self: api }, null), '');
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(await buildWorkbook({ name: 'r', template: { columns: [{ fieldId: 'key', label: 'Key' }], workbook: { footerInfo: false } } }, [{ key: 'SD-1', self: api, fields: {} }]));
+  assert.equal(wb.worksheets[0].getCell('A2').value, 'SD-1');
+});
+
+test('the workbook writes portal links when the runner passes them', async () => {
+  const wb = new ExcelJS.Workbook();
+  const links = { baseUrl: 'https://retailinmotion.atlassian.net', portalByProjectId: portals };
+  await wb.xlsx.load(await buildWorkbook({ name: 'r', template: { columns: [{ fieldId: 'key', label: 'Key' }], workbook: { footerInfo: false } } },
+    [{ key: 'SD-349370', self: api, fields: { project: { id: '10010' } } }], { links }));
+  assert.deepEqual(wb.worksheets[0].getCell('A2').value, { text: 'SD-349370', hyperlink: 'https://retailinmotion.atlassian.net/servicedesk/customer/portal/12/SD-349370' });
 });

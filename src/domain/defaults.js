@@ -22,6 +22,7 @@ export const DEFAULT_REPORT = {
       autoFilter: true,
       alternateRows: true,
       jiraLinks: true,
+      linkTarget: 'portal',
       generatedAt: true,
       footerInfo: true,
       wrapText: true,
