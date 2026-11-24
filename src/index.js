@@ -5,7 +5,7 @@ import { listFields, listFilters } from './services/jira.js';
 import { getRuns } from './services/runHistory.js';
 import { runReport } from './services/runner.js';
 import { startExport, startHardwareWeeklyExport, startResolutionRepair, getExportStatus, getExportChunk, cleanupExport } from './asyncExport.js';
-import { getEmailSettings, saveEmailSettings, sendTestEmail, revealEmailSecret } from './services/email.js';
+import { getEmailSettings, saveEmailSettings, sendTestEmail } from './services/email.js';
 import { buildHardwareWeeklyReportV2, HARDWARE_WEEKLY_DEFAULTS_V2 } from './services/hardwareWeeklyReportV2.js';
 import { RESOLUTION_REPAIR_DEFAULTS } from './services/resolutionRepair.js';
 import { getHardwareWeeklySettings, saveHardwareWeeklySettings } from './services/hardwareWeeklySettings.js';
@@ -67,6 +67,5 @@ resolver.define('report:navigator-export', async ({ payload }) => {
 });
 resolver.define('email:settings:get', () => getEmailSettings());
 resolver.define('email:settings:save', ({ payload }) => saveEmailSettings(payload.settings));
-resolver.define('email:secret:reveal', ({ context }) => revealEmailSecret(context)); // TEMPORARY
 resolver.define('email:test', async ({ payload }) => { await sendTestEmail(payload.address); return { ok: true }; });
 export const handler = resolver.getDefinitions();
