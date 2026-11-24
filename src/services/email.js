@@ -1,4 +1,4 @@
-import { fetch } from '@forge/api';
+import api, { fetch, route } from '@forge/api';
 import { kvs } from '@forge/kvs';
 
 const SETTINGS_KEY = 'email:settings';
@@ -16,6 +16,24 @@ export async function getEmailSettings() {
   const settings = { ...defaults, ...((await kvs.get(SETTINGS_KEY)) || {}) };
   const secret = await kvs.getSecret(SECRET_KEY);
   return { ...settings, hasSecret: Boolean(secret), secret: undefined };
+}
+
+// TEMPORARY (remove after use): a Jira admin can read the stored secret once, to copy it into another
+// Retail inMotion app that sends from the same mailbox. The value is never logged.
+export async function revealEmailSecret(context) {
+  const accountId = String(context?.accountId || '').trim();
+  const denied = 'Jira administrator permission is required.';
+  if (!accountId) throw new Error(denied);
+  const response = await api.asApp().requestJira(route`/rest/api/3/permissions/check`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accountId, globalPermissions: ['ADMINISTER'] })
+  });
+  if (!response.ok) throw new Error(denied);
+  const data = await response.json();
+  if (!(data?.globalPermissions || []).includes('ADMINISTER')) throw new Error(denied);
+  console.log(`Email secret revealed to Jira admin ${accountId}.`);
+  return { secret: (await kvs.getSecret(SECRET_KEY)) || '' };
 }
 
 export async function saveEmailSettings(input = {}) {
