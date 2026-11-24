@@ -57,7 +57,7 @@ jobs:
         run: |
           TOKEN="$(openssl rand -hex 32)"
           echo "::add-mask::$TOKEN"
-          forge variables set --encrypt -e production PORTAL_BRIDGE_TOKEN_NEXT "$TOKEN"
+          printf '%s' "$TOKEN" | forge variables set --encrypt --read-secret-value -e production PORTAL_BRIDGE_TOKEN_NEXT
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
       - name: Deploy Excel Report Manager production
@@ -111,8 +111,8 @@ jobs:
         working-directory: portal-app
         shell: bash
         run: |
-          forge variables set --encrypt -e production PORTAL_BRIDGE_TOKEN "${{ steps.token.outputs.token }}"
-          forge variables set --encrypt -e production PORTAL_BRIDGE_URL "${{ steps.bridge.outputs.url }}"
+          printf '%s' "${{ steps.token.outputs.token }}" | forge variables set --encrypt --read-secret-value -e production PORTAL_BRIDGE_TOKEN
+          printf '%s' "${{ steps.bridge.outputs.url }}" | forge variables set --encrypt --read-secret-value -e production PORTAL_BRIDGE_URL
 
       - name: Test Portal Reports app
         working-directory: portal-app
@@ -137,7 +137,7 @@ jobs:
       - name: Promote the new Portal Reports bridge token
         shell: bash
         run: |
-          forge variables set --encrypt -e production PORTAL_BRIDGE_TOKEN "${{ steps.token.outputs.token }}"
+          printf '%s' "${{ steps.token.outputs.token }}" | forge variables set --encrypt --read-secret-value -e production PORTAL_BRIDGE_TOKEN
           forge variables unset -e production PORTAL_BRIDGE_TOKEN_NEXT
           forge deploy -e production --approve MAJOR_VERSION_RULE --non-interactive
 
